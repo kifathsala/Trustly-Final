@@ -136,43 +136,56 @@
       "type": "object",
       "properties": {
         "coupleId": { "type": "string" },
-        "creatorId": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "creatorName": { "type": "string" },
         "title": { "type": "string" },
-        "date": { "type": "string" },
         "description": { "type": "string" },
+        "date": { "type": "string" },
+        "imageUrl": { "type": "string" },
         "photoURL": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["coupleId", "creatorId", "title"]
+      "required": ["coupleId", "createdBy", "title", "description", "createdAt"]
     },
     "CoupleGoal": {
       "title": "CoupleGoal",
-      "description": "Aspirational goal worked on together",
+      "description": "Meaningful goals and shared milestones built together by couple",
       "type": "object",
       "properties": {
         "coupleId": { "type": "string" },
-        "creatorId": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "creatorName": { "type": "string" },
         "title": { "type": "string" },
-        "targetDate": { "type": "string" },
+        "description": { "type": "string" },
         "category": { "type": "string" },
-        "isCompleted": { "type": "boolean" },
-        "createdAt": { "type": "string" }
+        "deadline": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "completed"] },
+        "completedAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["coupleId", "creatorId", "title"]
+      "required": ["coupleId", "createdBy", "title", "category", "status", "createdAt"]
     },
     "ImportantDate": {
       "title": "ImportantDate",
-      "description": "Anniversary, first meeting, birthdays",
+      "description": "Anniversary, first meeting, birthdays, milestones",
       "type": "object",
       "properties": {
         "coupleId": { "type": "string" },
-        "creatorId": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "creatorName": { "type": "string" },
         "title": { "type": "string" },
         "date": { "type": "string" },
+        "description": { "type": "string" },
+        "repeatYearly": { "type": "boolean" },
+        "category": { "type": "string" },
+        "reminder": { "type": "string" },
         "reminderDays": { "type": "number" },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["coupleId", "creatorId", "title", "date"]
+      "required": ["coupleId", "createdBy", "title", "date", "createdAt"]
     },
     "SharedNote": {
       "title": "SharedNote",

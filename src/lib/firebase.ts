@@ -1,51 +1,58 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import fallbackStarterConfig from '../../firebase-applet-config.json';
 
-// Prioritize custom user project environment variables; fallback to starter config if env vars are unset
-const customEnvConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+// Direct production configuration for TRUSTLY
+export const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCJGtAIjZzwzi07bmhVJ0SBZDdq_tnJvgM",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "trustly-16be3.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "trustly-16be3",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "trustly-16be3.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "704788627452",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:704788627452:web:8bc99f0f107c9f5befbc79",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-SFZEHRQMLX"
 };
 
-// Check if user has provided their own Firebase project credentials via environment variables
-const hasUserEnvConfig = Boolean(
-  customEnvConfig.apiKey &&
-  customEnvConfig.projectId &&
-  customEnvConfig.appId
-);
-
-const activeConfig = hasUserEnvConfig
-  ? {
-      apiKey: customEnvConfig.apiKey,
-      authDomain: customEnvConfig.authDomain || `${customEnvConfig.projectId}.firebaseapp.com`,
-      projectId: customEnvConfig.projectId,
-      storageBucket: customEnvConfig.storageBucket || `${customEnvConfig.projectId}.firebasestorage.app`,
-      messagingSenderId: customEnvConfig.messagingSenderId || '',
-      appId: customEnvConfig.appId,
-      measurementId: customEnvConfig.measurementId || '',
-    }
-  : fallbackStarterConfig;
-
-// Initialize Firebase SDK with the resolved project configuration
-const app = getApps().length > 0 ? getApp() : initializeApp(activeConfig);
+// Initialize Firebase SDK with the confirmed project configuration
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use custom databaseId if specified in env, otherwise default or fallback
-const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || 
-  (!hasUserEnvConfig ? (fallbackStarterConfig as any).firestoreDatabaseId : undefined);
+// Use custom databaseId if specified in env, otherwise default
+const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || undefined;
 
 export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+export const storage = getStorage(app);
 
-export const isUsingCustomFirebase = hasUserEnvConfig;
-export const currentFirebaseProjectId = activeConfig.projectId;
+// Safe memory image upload to couples/{coupleId}/memories/{memoryId}/...
+export async function uploadMemoryImage(coupleId: string, memoryId: string, file: File): Promise<string> {
+  const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `couples/${coupleId}/memories/${memoryId}/${Date.now()}_${sanitizedName}`;
+  const fileRef = storageRef(storage, path);
+  
+  await uploadBytes(fileRef, file, {
+    contentType: file.type,
+    customMetadata: { coupleId, memoryId }
+  });
+  
+  const downloadUrl = await getDownloadURL(fileRef);
+  return downloadUrl;
+}
+
+export async function deleteMemoryImage(imageUrl?: string): Promise<void> {
+  if (!imageUrl || !imageUrl.includes('firebasestorage')) return;
+  try {
+    const fileRef = storageRef(storage, imageUrl);
+    await deleteObject(fileRef);
+  } catch (err) {
+    console.warn("Notice deleting image from storage:", err);
+  }
+}
+
+export const currentFirebaseProjectId = firebaseConfig.projectId;
+export const isUsingCustomFirebase = true;
 
 // Standard Firestore error handler per guidelines
 export enum OperationType {
@@ -79,7 +86,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // Connection test
 export async function testConnection() {
-  // App initialization confirmation
   return Boolean(app && db);
 }
 testConnection();

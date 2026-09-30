@@ -73,36 +73,46 @@ service cloud.firestore {
       // Subcollections inside couples/{coupleId}
       match /memories/{memoryId} {
         allow read: if isCoupleMember(coupleId);
-        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
-        allow update, delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+        allow create: if isCoupleMember(coupleId) && 
+          (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
+        allow update: if isCoupleMember(coupleId) && 
+          request.resource.data.coupleId == resource.data.coupleId &&
+          (request.resource.data.createdBy == resource.data.createdBy || isMasterAdmin());
+        allow delete: if isCoupleMember(coupleId);
       }
 
       match /goals/{goalId} {
         allow read: if isCoupleMember(coupleId);
-        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
-        allow update: if isCoupleMember(coupleId);
-        allow delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+        allow create: if isCoupleMember(coupleId) && 
+          (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
+        allow update: if isCoupleMember(coupleId) && 
+          request.resource.data.coupleId == resource.data.coupleId && 
+          (request.resource.data.createdBy == resource.data.createdBy || isMasterAdmin());
+        allow delete: if isCoupleMember(coupleId);
       }
 
       match /importantDates/{dateId} {
         allow read: if isCoupleMember(coupleId);
-        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
-        allow update: if isCoupleMember(coupleId);
-        allow delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+        allow create: if isCoupleMember(coupleId) && 
+          (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
+        allow update: if isCoupleMember(coupleId) && 
+          request.resource.data.coupleId == resource.data.coupleId &&
+          (request.resource.data.createdBy == resource.data.createdBy || isMasterAdmin());
+        allow delete: if isCoupleMember(coupleId);
       }
 
       match /sharedNotes/{noteId} {
         allow read: if isCoupleMember(coupleId);
         allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
         allow update: if isCoupleMember(coupleId);
-        allow delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+        allow delete: if isCoupleMember(coupleId);
       }
 
       match /boundaries/{boundaryId} {
         allow read: if isCoupleMember(coupleId);
         allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
         allow update: if isCoupleMember(coupleId);
-        allow delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+        allow delete: if isCoupleMember(coupleId);
       }
 
       // Shared Check-In Summaries (accessible by verified couple members, sanitized summary only)

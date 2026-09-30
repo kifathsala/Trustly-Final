@@ -80,6 +80,45 @@ export interface SharedCheckInSummary {
   createdAt: string;
 }
 
+export type ConversationTopicCategory = 
+  | 'Communication'
+  | 'Quality Time'
+  | 'Affection'
+  | 'Trust'
+  | 'Money'
+  | 'Family'
+  | 'Future'
+  | 'Personal Feelings'
+  | 'Something Else';
+
+export interface ConversationStarterContent {
+  feeling: string;
+  discuss: string;
+  starter: string;
+}
+
+export interface ConversationStarterDoc {
+  id?: string;
+  userId: string;
+  coupleId?: string | null;
+  category: ConversationTopicCategory;
+  originalReflection?: string;
+  content: ConversationStarterContent;
+  status: 'private' | 'shared';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SharedConversationStarter {
+  id: string;
+  coupleId: string;
+  userId: string;
+  userDisplayName?: string;
+  category: ConversationTopicCategory;
+  content: ConversationStarterContent;
+  createdAt: string;
+}
+
 export interface DailyCheckIn {
   id?: string;
   userId: string;
@@ -116,10 +155,13 @@ export interface BoundaryItem {
   creatorId?: string;
   createdBy: string;
   creatorName?: string;
-  category: 'Communication' | 'Privacy' | 'Social Media' | 'Friendships' | 'Personal Space' | 'Time Together' | 'Money' | 'Finances' | 'Other';
+  category: 'Communication' | 'Privacy' | 'Social Life' | 'Time Together' | 'Money' | 'Family' | 'Online/Social Media' | 'Personal Space' | 'Other' | string;
   title: string;
-  description: string;
-  status: 'pending' | 'discussing' | 'agreed' | 'declined';
+  description?: string;
+  details?: string;
+  handling?: string;
+  status: 'pending' | 'discussing' | 'agreed' | 'review' | 'declined';
+  agreements?: Record<string, boolean>;
   agreedBy?: string;
   agreedByName?: string;
   agreedAt?: string;
@@ -145,13 +187,24 @@ export interface SharedMemory {
   createdBy: string;
   creatorName?: string;
   title: string;
-  date: string;
+  date?: string;
   description: string;
+  imageUrl?: string;
   photoURL?: string;
   tag?: string;
   createdAt: string;
   updatedAt?: string;
 }
+
+export type CoupleGoalCategory = 
+  | 'Quality Time'
+  | 'Communication'
+  | 'Health & Wellness'
+  | 'Travel'
+  | 'Finance'
+  | 'Personal Growth'
+  | 'Future Plans'
+  | 'Something Else';
 
 export interface CoupleGoal {
   id?: string;
@@ -160,11 +213,14 @@ export interface CoupleGoal {
   createdBy: string;
   creatorName?: string;
   title: string;
-  category: 'Travel' | 'Savings' | 'Health' | 'Learning' | 'Quality Time' | 'Personal Growth' | 'Other' | string;
+  category: CoupleGoalCategory | string;
   description?: string;
+  deadline?: string | null;
   targetDate?: string;
-  progress: number; // 0 to 100
-  isCompleted: boolean;
+  status?: 'active' | 'completed';
+  isCompleted?: boolean;
+  progress: number;
+  completedAt?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -177,9 +233,11 @@ export interface ImportantDate {
   creatorName?: string;
   title: string;
   date: string;
+  description?: string;
+  repeatYearly?: boolean;
   reminder?: string;
   reminderDays?: number;
-  category: 'Anniversary' | 'Birthday' | 'First Meeting' | 'Custom Date' | 'Milestone' | 'Other';
+  category?: 'Anniversary' | 'Birthday' | 'First Meeting' | 'Custom Date' | 'Milestone' | 'Special Day' | 'Trip' | 'Other';
   createdAt: string;
   updatedAt?: string;
 }

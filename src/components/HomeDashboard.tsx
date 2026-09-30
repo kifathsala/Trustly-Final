@@ -10,11 +10,14 @@ import {
   query, 
   where, 
   limit,
-  orderBy
+  orderBy,
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { DailyCheckIn, UserCheckIn, SharedCheckInSummary } from '../types';
+import { DailyCheckIn, UserCheckIn, SharedCheckInSummary, SharedConversationStarter, CoupleGoal } from '../types';
 import { DailyCheckInModal } from './DailyCheckInModal';
+import { ConversationStartersModal } from './ConversationStartersModal';
+import { CoupleGoalsModal } from './CoupleGoalsModal';
 import { 
   Heart, 
   Sparkles, 
@@ -31,7 +34,10 @@ import {
   X,
   Crown,
   History,
-  Share2
+  Share2,
+  Trophy,
+  Target,
+  Plus
 } from 'lucide-react';
 
 interface HomeDashboardProps {
@@ -60,6 +66,18 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
   const [checkInModalInitialTab, setCheckInModalInitialTab] = useState<'checkin' | 'history'>('checkin');
 
+  // Things Worth Talking About state
+  const [showConversationModal, setShowConversationModal] = useState<boolean>(false);
+  const [conversationModalInitialTab, setConversationModalInitialTab] = useState<'create' | 'history'>('create');
+  const [savedStartersCount, setSavedStartersCount] = useState<number>(0);
+  const [partnerSharedConversation, setPartnerSharedConversation] = useState<SharedConversationStarter | null>(null);
+
+  // Couple Goals state
+  const [showGoalsModal, setShowGoalsModal] = useState<boolean>(false);
+  const [goalsModalInitialMode, setGoalsModalInitialMode] = useState<'list' | 'create'>('list');
+  const [goalsModalInitialTab, setGoalsModalInitialTab] = useState<'active' | 'milestones'>('active');
+  const [coupleGoals, setCoupleGoals] = useState<CoupleGoal[]>([]);
+
   // Real notifications state
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
@@ -70,8 +88,60 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
   useEffect(() => {
     if (!userProfile) return;
     loadCheckIns();
+    loadConversationStarters();
     loadNotifications();
   }, [userProfile, partnerProfile, coupleSpace]);
+
+  // Real-time listener on couple goals
+  useEffect(() => {
+    if (!coupleSpace?.id) {
+      setCoupleGoals([]);
+      return;
+    }
+
+    const goalsCol = collection(db, 'couples', coupleSpace.id, 'goals');
+    const unsub = onSnapshot(goalsCol, (snapshot) => {
+      const items = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as CoupleGoal));
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setCoupleGoals(items);
+    }, (err) => {
+      console.warn("Couple goals listener notice:", err);
+    });
+
+    return () => unsub();
+  }, [coupleSpace?.id]);
+
+  const loadConversationStarters = async () => {
+    if (!userProfile) return;
+    try {
+      // Load user's saved starters count
+      const myStartersSnap = await getDocs(collection(db, 'users', userProfile.uid, 'conversationStarters'));
+      setSavedStartersCount(myStartersSnap.size);
+
+      // If in couple, check for any shared conversation starter from partner
+      if (partnerProfile && coupleSpace?.id) {
+        const sharedQ = query(collection(db, 'couples', coupleSpace.id, 'sharedConversations'), limit(5));
+        const sharedSnap = await getDocs(sharedQ);
+        const partnerItems = sharedSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as SharedConversationStarter))
+          .filter(d => d.userId !== userProfile.uid);
+        
+        if (partnerItems.length > 0) {
+          partnerItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setPartnerSharedConversation(partnerItems[0]);
+        } else {
+          setPartnerSharedConversation(null);
+        }
+      } else {
+        setPartnerSharedConversation(null);
+      }
+    } catch (e) {
+      console.warn("Notice loading conversation starters:", e);
+    }
+  };
 
   const loadNotifications = async () => {
     if (!userProfile) return;
@@ -630,6 +700,242 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
         </div>
       )}
 
+      {/* Partner's Shared Conversation Starter (When available from partner) */}
+      {partnerProfile && partnerSharedConversation && (
+        <div className="glass-card rounded-3xl p-5 border border-indigo-500/30 bg-indigo-950/15 animate-fadeIn">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+              <span>💬</span>
+              <span>Conversation Topic from {partnerProfile.displayName}</span>
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-200 border border-indigo-500/30">
+              {partnerSharedConversation.category}
+            </span>
+          </div>
+          <p className="text-xs text-indigo-100 font-medium leading-relaxed bg-black/30 p-3 rounded-2xl border border-indigo-500/20">
+            "{partnerSharedConversation.content.starter}"
+          </p>
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-[11px] text-zinc-400">
+              Open to talk through with warmth
+            </span>
+            {onOpenCoachWithTopic && (
+              <button
+                type="button"
+                onClick={() => {
+                  const prompt = `My partner ${partnerProfile.displayName} shared this conversation topic: "${partnerSharedConversation.content.starter}". How can I respond with curiosity, warmth, and emotional openness?`;
+                  onOpenCoachWithTopic(prompt);
+                }}
+                className="text-xs font-semibold text-violet-300 hover:text-violet-200 flex items-center gap-1 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Talk to Coach</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* THINGS WORTH TALKING ABOUT CARD */}
+      <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl">
+        <div className="absolute top-0 right-0 w-36 h-36 bg-violet-500/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-36 h-36 bg-rose-500/15 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="relative space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-semibold">
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Things Worth Talking About</span>
+            </div>
+            {savedStartersCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setConversationModalInitialTab('history');
+                  setShowConversationModal(true);
+                }}
+                className="text-[11px] font-mono text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20 hover:bg-violet-500/20 transition-colors cursor-pointer"
+              >
+                {savedStartersCount} Saved
+              </button>
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
+              Turn what's on your mind into a conversation.
+            </h3>
+            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+              Transform sensitive relationship concerns into calm, respectful conversation starters.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setConversationModalInitialTab('create');
+                setShowConversationModal(true);
+              }}
+              className="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-rose-600 text-white font-semibold text-xs shadow-lg shadow-purple-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ring-1 ring-white/20"
+            >
+              <span>Start a Conversation</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setConversationModalInitialTab('history');
+                setShowConversationModal(true);
+              }}
+              className="py-3.5 px-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 font-medium text-xs border border-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
+              title="Your Conversation Starters"
+            >
+              <History className="w-4 h-4" />
+              <span>History</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* YOUR GOALS CARD (For connected couples) */}
+      {coupleSpace?.id && (
+        <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl">
+          <div className="absolute top-0 right-0 w-36 h-36 bg-rose-500/15 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-36 h-36 bg-amber-500/15 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">
+                <Target className="w-3.5 h-3.5 text-rose-400" />
+                <span>Your Goals</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGoalsModalInitialTab('active');
+                    setGoalsModalInitialMode('list');
+                    setShowGoalsModal(true);
+                  }}
+                  className="text-[11px] font-mono text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                >
+                  {coupleGoals.filter(g => g.status !== 'completed').length} Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGoalsModalInitialTab('milestones');
+                    setGoalsModalInitialMode('list');
+                    setShowGoalsModal(true);
+                  }}
+                  className="text-[11px] font-mono text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 hover:bg-purple-500/20 transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <Trophy className="w-3 h-3 text-purple-400" />
+                  <span>{coupleGoals.filter(g => g.status === 'completed').length} Milestones</span>
+                </button>
+              </div>
+            </div>
+
+            {coupleGoals.length === 0 ? (
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
+                    No shared goals yet.
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    Choose something you'd like to work toward together.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGoalsModalInitialMode('create');
+                    setShowGoalsModal(true);
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-indigo-600 text-white font-semibold text-xs shadow-lg shadow-rose-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ring-1 ring-white/20"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Your First Goal</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
+                    Build something together.
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    Meaningful goals and shared milestones crafted with love.
+                  </p>
+                </div>
+
+                {/* Latest Active Goal Preview */}
+                {(() => {
+                  const latestActive = coupleGoals.find(g => g.status !== 'completed');
+                  if (!latestActive) return null;
+                  return (
+                    <div 
+                      onClick={() => {
+                        setGoalsModalInitialTab('active');
+                        setGoalsModalInitialMode('list');
+                        setShowGoalsModal(true);
+                      }}
+                      className="p-3 rounded-2xl bg-zinc-900/70 border border-white/5 hover:border-white/15 transition-all cursor-pointer flex items-center justify-between"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300">
+                            {latestActive.category}
+                          </span>
+                          {latestActive.deadline && (
+                            <span className="text-[10px] font-mono text-zinc-500">
+                              • Due {latestActive.deadline}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-bold text-white">
+                          {latestActive.title}
+                        </h4>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-zinc-400 shrink-0" />
+                    </div>
+                  );
+                })()}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGoalsModalInitialMode('create');
+                      setShowGoalsModal(true);
+                    }}
+                    className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-semibold text-xs shadow-lg shadow-rose-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create a Goal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGoalsModalInitialMode('list');
+                      setShowGoalsModal(true);
+                    }}
+                    className="py-3 px-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 font-medium text-xs border border-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>View All</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Quick Navigation Cards */}
       <div className="grid grid-cols-2 gap-3.5">
         <button
@@ -758,6 +1064,25 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
         initialTab={checkInModalInitialTab}
         onOpenCoachWithTopic={onOpenCoachWithTopic}
         onCheckInCompleted={loadCheckIns}
+      />
+
+      {/* Things Worth Talking About Modal */}
+      <ConversationStartersModal
+        isOpen={showConversationModal}
+        onClose={() => {
+          setShowConversationModal(false);
+          loadConversationStarters();
+        }}
+        initialTab={conversationModalInitialTab}
+        onOpenCoachWithTopic={onOpenCoachWithTopic}
+      />
+
+      {/* Couple Goals & Shared Milestones Modal */}
+      <CoupleGoalsModal
+        isOpen={showGoalsModal}
+        onClose={() => setShowGoalsModal(false)}
+        initialMode={goalsModalInitialMode}
+        initialTab={goalsModalInitialTab}
       />
     </div>
   );

@@ -93,3 +93,168 @@ function generateCuratedCoachResponse(query: string, mode: CoachPromptOptions['c
 
   return `Relationships grow when we choose curiosity over assumption.\n\nA helpful way to express this is:\n"I’ve been reflecting on our dynamic lately and wanted to check in. I want to make sure you feel heard and supported, and also share what I've been feeling."\n\nFocus on how you want to grow together rather than past shortcomings.`;
 }
+
+export interface ConversationStarterResult {
+  feeling: string;
+  discuss: string;
+  starter: string;
+  isSafetyAlert?: boolean;
+  safetyGuidance?: string;
+}
+
+export async function buildConversationStarter(
+  category: string,
+  userReflection: string
+): Promise<ConversationStarterResult> {
+  const text = userReflection.toLowerCase();
+
+  // Safety clause check: threats, violence, physical intimidation, severe coercion
+  const safetyKeywords = [
+    'hit me', 'beat me', 'struck me', 'violence', 'violent', 
+    'physical abuse', 'threatened to kill', 'threatened to hurt', 
+    'afraid for my life', 'afraid he will hurt', 'afraid she will hurt', 
+    'scared he might hurt', 'scared she might hurt', 'forced me to',
+    'choking', 'pushed me down', 'bruise'
+  ];
+
+  const triggersSafety = safetyKeywords.some(k => text.includes(k));
+  if (triggersSafety) {
+    return {
+      feeling: "I am feeling unsafe and in need of support.",
+      discuss: "Prioritizing physical safety and reaching out to trusted support services.",
+      starter: "I need to take space right now to ensure my personal well-being.",
+      isSafetyAlert: true,
+      safetyGuidance: "Your physical and emotional safety is the ultimate priority. If you or someone you know is experiencing threats, intimidation, coercion, or violence, please know you are not alone and help is available. You can reach out discreetly to the National Domestic Violence Hotline by calling 1-800-799-SAFE (7233) or texting 'START' to 88788 (free, confidential, 24/7), or contact local emergency services if you are in immediate danger."
+    };
+  }
+
+  // Attempt to call Gemini if client or key is available
+  if (apiKey || process.env.GEMINI_API_KEY) {
+    try {
+      const client = aiClient || new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || apiKey });
+      const prompt = `Topic Category: ${category}
+User's Situation or Thoughts: "${userReflection.trim() || 'No additional details provided'}"
+
+Instructions:
+Create a calm, respectful, non-accusatory conversation starter based on this input.
+STRICT RULES:
+- Never accuse the partner of cheating, lying, or malice.
+- Avoid absolute statements like "You always...", "You never...", or "You don't care".
+- Frame with vulnerable, constructive "I" statements.
+- Return EXACTLY a JSON object with three keys:
+  "feeling": Concise summary of what the user is experiencing (e.g. "I've been feeling a little distant lately")
+  "discuss": What the user wants to constructively explore together (e.g. "I'd like us to find intentional time together")
+  "starter": A gentle, warm way to open the talk in person (e.g. "Can we talk about how we've been feeling lately? I miss having more time together.")
+Do not include markdown codeblocks if possible, or provide valid JSON only.`;
+
+      const response = await client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION,
+          temperature: 0.6,
+        }
+      });
+
+      if (response.text) {
+        const cleaned = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+        try {
+          const parsed = JSON.parse(cleaned);
+          if (parsed.feeling && parsed.discuss && parsed.starter) {
+            return {
+              feeling: parsed.feeling,
+              discuss: parsed.discuss,
+              starter: parsed.starter,
+              isSafetyAlert: false
+            };
+          }
+        } catch {
+          // Continue to fallback
+        }
+      }
+    } catch (e) {
+      console.warn("Notice in Gemini conversation starter call:", e);
+    }
+  }
+
+  // Curated generator fallback based on category and reflection
+  return generateCuratedConversationStarter(category, userReflection);
+}
+
+function generateCuratedConversationStarter(category: string, reflection: string): ConversationStarterResult {
+  const trimmed = reflection.trim();
+
+  switch (category) {
+    case 'Communication':
+      return {
+        feeling: trimmed ? `I've been feeling a bit disconnected when we talk lately.` : `I've been noticing moments where our communication feels rushed.`,
+        discuss: `I want to find a calm rhythm where both of us feel heard without feeling defensive.`,
+        starter: `Can we set aside 15 quiet minutes tonight to check in? I value our connection and want to hear how you're feeling too.`,
+        isSafetyAlert: false
+      };
+
+    case 'Quality Time':
+      return {
+        feeling: trimmed ? `I've been missing dedicated, focused time together.` : `I miss having moments together where neither of us is distracted by screens or work.`,
+        discuss: `I'd love for us to schedule intentional date time or downtime just for the two of us.`,
+        starter: `I've really been missing you lately. Could we pick an evening this week to do something just for us, phones put away?`,
+        isSafetyAlert: false
+      };
+
+    case 'Affection':
+      return {
+        feeling: trimmed ? `I've been feeling a craving for more warmth and closeness between us.` : `I've been feeling a bit vulnerable and craving more physical and emotional warmth.`,
+        discuss: `Finding small everyday ways to express tenderness that feel comfortable for both of us.`,
+        starter: `I wanted to share that I've been craving extra hugs and closeness lately. You mean a lot to me and I love feeling close to you.`,
+        isSafetyAlert: false
+      };
+
+    case 'Trust':
+      return {
+        feeling: trimmed ? `I've noticed some quiet anxiety on my mind around transparency and reassurance.` : `I've noticed some uncertainty on my mind and want to ground myself in honesty.`,
+        discuss: `Having open clarity on our agreements and reassuring each other with openness.`,
+        starter: `I have a vulnerable reflection on my mind that I want to share with you calmly. Can we talk through something gently so I don't hold onto unnecessary worry?`,
+        isSafetyAlert: false
+      };
+
+    case 'Money':
+      return {
+        feeling: trimmed ? `I've been feeling some stress around how we're handling shared finances or future planning.` : `I've been feeling some pressure around budgeting and want us to feel aligned on our plans.`,
+        discuss: `Reviewing our financial goals calmly so we both feel secure and respected.`,
+        starter: `Could we sit down this weekend with a warm cup of coffee and review our plans together? I want to make sure we're on the same page and supporting each other.`,
+        isSafetyAlert: false
+      };
+
+    case 'Family':
+      return {
+        feeling: trimmed ? `I've been navigating some complex feelings regarding family dynamics or expectations.` : `I've been feeling the weight of family commitments and want to make sure our bond comes first.`,
+        discuss: `Setting mutual boundaries and supporting each other during family events or obligations.`,
+        starter: `I wanted to check in about upcoming family plans. Can we talk about how we can support each other and feel like a team?`,
+        isSafetyAlert: false
+      };
+
+    case 'Future':
+      return {
+        feeling: trimmed ? `I've been thinking about what's ahead for us and wanting clarity on our shared vision.` : `I've been daydreaming about our future and wanting to understand where you're at.`,
+        discuss: `Sharing our hopes and timelines openly without pressure.`,
+        starter: `I'd love to hear what's been on your heart regarding our future together. When you have a peaceful moment, can we talk about what you're hoping for?`,
+        isSafetyAlert: false
+      };
+
+    case 'Personal Feelings':
+      return {
+        feeling: trimmed ? `I've been experiencing some emotional vulnerability and wanted to be transparent with you.` : `I've had some personal worries on my mind that I didn't want to carry alone.`,
+        discuss: `Sharing what I'm walking through so you know where my headspace is.`,
+        starter: `I wanted to let you know what's been going on in my head lately. It's not about anything you did wrong—I just feel closer when I can share it with you.`,
+        isSafetyAlert: false
+      };
+
+    default:
+      return {
+        feeling: trimmed ? `I've been holding some reflections on my mind that I'd love to talk through.` : `I've been thinking about our relationship dynamic and wanting to check in.`,
+        discuss: `Exploring this topic together with warmth and open curiosity.`,
+        starter: `There's something on my mind that I'd really love to share with you when you have a quiet moment. Is tonight a good time for a calm chat?`,
+        isSafetyAlert: false
+      };
+  }
+}

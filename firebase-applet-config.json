@@ -1,12 +1,12 @@
 {
-  "projectId": "lively-key-7cb1c",
-  "appId": "1:448148288475:web:e53319a9b452812618adfe",
-  "apiKey": "AIzaSyCWbXf137aI6TlovgcZGWTfvlapcM18XXw",
-  "authDomain": "lively-key-7cb1c.firebaseapp.com",
+  "projectId": "trustly-16be3",
+  "appId": "1:704788627452:web:8bc99f0f107c9f5befbc79",
+  "apiKey": "AIzaSyCJGtAIjZzwzi07bmhVJ0SBZDdq_tnJvgM",
+  "authDomain": "trustly-16be3.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-0a879414-7f35-432e-9274-dddf6e22c626",
-  "storageBucket": "lively-key-7cb1c.firebasestorage.app",
-  "messagingSenderId": "448148288475",
-  "measurementId": "",
-  "oAuthClientId": "448148288475-5vgs9ereqdjikt37n9rj2sfar7aau908.apps.googleusercontent.com",
+  "storageBucket": "trustly-16be3.firebasestorage.app",
+  "messagingSenderId": "704788627452",
+  "measurementId": "G-SFZEHRQMLX",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }
