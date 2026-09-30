@@ -5,6 +5,7 @@ import {
   collection, 
   doc, 
   setDoc, 
+  getDoc,
   getDocs, 
   query, 
   where, 
@@ -12,7 +13,8 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { DailyCheckIn } from '../types';
+import { DailyCheckIn, UserCheckIn, SharedCheckInSummary } from '../types';
+import { DailyCheckInModal } from './DailyCheckInModal';
 import { 
   Heart, 
   Sparkles, 
@@ -27,12 +29,15 @@ import {
   Compass, 
   Bell, 
   X,
-  Crown
+  Crown,
+  History,
+  Share2
 } from 'lucide-react';
 
 interface HomeDashboardProps {
   onNavigateTab: (tab: any) => void;
   onOpenPairing?: (mode?: 'create' | 'join' | 'options') => void;
+  onOpenCoachWithTopic?: (topic: string) => void;
 }
 
 interface AppNotification {
@@ -43,18 +48,17 @@ interface AppNotification {
   read?: boolean;
 }
 
-export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onOpenPairing }) => {
+export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onOpenPairing, onOpenCoachWithTopic }) => {
   const { currentUser, userProfile, partnerProfile, coupleSpace } = useAuth();
   const { isPlus, openPricingModal } = useSubscription();
   
-  const [selectedScore, setSelectedScore] = useState<number>(4);
-  const [betterText, setBetterText] = useState<string>('');
-  const [shareWithPartner, setShareWithPartner] = useState<boolean>(true);
   const [todayCheckedIn, setTodayCheckedIn] = useState<boolean>(false);
-  const [loadingCheckIn, setLoadingCheckIn] = useState<boolean>(false);
+  const [todayUserCheckIn, setTodayUserCheckIn] = useState<UserCheckIn | null>(null);
+  const [partnerSharedSummary, setPartnerSharedSummary] = useState<SharedCheckInSummary | null>(null);
   const [loadingData, setLoadingData] = useState<boolean>(true);
-  const [recentCheckIns, setRecentCheckIns] = useState<DailyCheckIn[]>([]);
-  const [partnerCheckIn, setPartnerCheckIn] = useState<DailyCheckIn | null>(null);
+  const [recentCheckIns, setRecentCheckIns] = useState<UserCheckIn[]>([]);
+  const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
+  const [checkInModalInitialTab, setCheckInModalInitialTab] = useState<'checkin' | 'history'>('checkin');
 
   // Real notifications state
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -89,81 +93,45 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
     if (!userProfile) return;
     setLoadingData(true);
     try {
-      // Load user's checkin for today
-      const userCheckInRef = collection(db, 'checkIns');
-      const q = query(
-        userCheckInRef, 
-        where('userId', '==', userProfile.uid),
-        where('date', '==', todayDateStr),
-        limit(1)
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
+      // 1. Load user's checkin for today from private collection
+      const todayRef = doc(db, 'users', userProfile.uid, 'checkIns', todayDateStr);
+      const todaySnap = await getDoc(todayRef);
+      if (todaySnap.exists()) {
+        const data = todaySnap.data() as UserCheckIn;
+        setTodayUserCheckIn(data);
         setTodayCheckedIn(true);
-        const data = snap.docs[0].data() as DailyCheckIn;
-        setSelectedScore(data.connectionScore);
-        setBetterText(data.betterResponse || '');
       } else {
+        setTodayUserCheckIn(null);
         setTodayCheckedIn(false);
       }
 
-      // Load user's past check-ins (real records only)
-      const pastQ = query(
-        collection(db, 'checkIns'),
-        where('userId', '==', userProfile.uid),
-        limit(14)
-      );
-      const pastSnap = await getDocs(pastQ);
-      const pastList = pastSnap.docs.map(d => ({ id: d.id, ...d.data() } as DailyCheckIn));
+      // 2. Load user's past check-ins (real records only)
+      const pastSnap = await getDocs(collection(db, 'users', userProfile.uid, 'checkIns'));
+      const pastList = pastSnap.docs.map(d => ({ id: d.id, ...d.data() } as UserCheckIn));
+      pastList.sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
       setRecentCheckIns(pastList);
 
-      // If in couple, check if partner shared today
-      if (partnerProfile && coupleSpace) {
-        const partnerQ = query(
-          collection(db, 'checkIns'),
-          where('userId', '==', partnerProfile.uid),
-          where('date', '==', todayDateStr),
-          where('isShared', '==', true),
-          limit(1)
-        );
-        const pSnap = await getDocs(partnerQ);
-        if (!pSnap.empty) {
-          setPartnerCheckIn(pSnap.docs[0].data() as DailyCheckIn);
+      // 3. If in couple, check if partner shared summary today
+      if (partnerProfile && coupleSpace?.id) {
+        const partnerSummaryRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', todayDateStr);
+        const partnerSummarySnap = await getDoc(partnerSummaryRef);
+        if (partnerSummarySnap.exists()) {
+          const pData = partnerSummarySnap.data() as SharedCheckInSummary;
+          if (pData.userId !== userProfile.uid) {
+            setPartnerSharedSummary(pData);
+          } else {
+            setPartnerSharedSummary(null);
+          }
         } else {
-          setPartnerCheckIn(null);
+          setPartnerSharedSummary(null);
         }
+      } else {
+        setPartnerSharedSummary(null);
       }
     } catch (e) {
       console.warn("Notice loading check-ins:", e);
     } finally {
       setLoadingData(false);
-    }
-  };
-
-  const submitTodayCheckIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userProfile) return;
-
-    setLoadingCheckIn(true);
-    try {
-      const checkInId = `${userProfile.uid}_${todayDateStr}`;
-      const newCheckIn: DailyCheckIn = {
-        userId: userProfile.uid,
-        coupleId: coupleSpace?.id || undefined,
-        connectionScore: selectedScore,
-        betterResponse: betterText.trim() || undefined,
-        isShared: shareWithPartner,
-        date: todayDateStr,
-        createdAt: new Date().toISOString()
-      };
-
-      await setDoc(doc(db, 'checkIns', checkInId), newCheckIn);
-      setTodayCheckedIn(true);
-      await loadCheckIns();
-    } catch (err) {
-      console.error("Check-in submit error:", err);
-    } finally {
-      setLoadingCheckIn(false);
     }
   };
 
@@ -174,13 +142,24 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
     return 'Good evening';
   };
 
+  const getFeelingScore = (feeling: string) => {
+    switch (feeling) {
+      case 'Very connected': return 5;
+      case 'Good': return 4;
+      case 'Okay': return 3;
+      case 'Something is on my mind': return 2.5;
+      case 'A little distant': return 2;
+      default: return 3;
+    }
+  };
+
   // CALCULATE REAL METRICS ONLY - ZERO RANDOM, ZERO HARDCODED NUMBERS
   const totalRealCheckIns = recentCheckIns.length;
   const hasEnoughPulseData = totalRealCheckIns >= 3;
 
   // Real calculation from actual recorded checkIns
   const avgScore = hasEnoughPulseData
-    ? recentCheckIns.reduce((acc, c) => acc + (c.connectionScore || 3), 0) / totalRealCheckIns
+    ? recentCheckIns.reduce((acc, c) => acc + getFeelingScore(c.feeling), 0) / totalRealCheckIns
     : 0;
 
   const realConnectionPct = hasEnoughPulseData ? Math.min(100, Math.round((avgScore / 5) * 100)) : 0;
@@ -492,127 +471,161 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
         </div>
       </div>
 
-      {/* Today's Check-in Card */}
-      <div className="glass-card rounded-3xl p-6 border border-white/10 relative shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <span>Today's Check-in</span>
-              {todayCheckedIn && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-            </h3>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Take 30 seconds to reflect on your connection today.
-            </p>
-          </div>
-          <span className="text-[11px] text-zinc-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
-            {todayDateStr}
-          </span>
-        </div>
+      {/* DAILY RELATIONSHIP CHECK-IN ENTRY POINT */}
+      <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl">
+        <div className="absolute top-0 right-0 w-36 h-36 bg-rose-500/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-36 h-36 bg-purple-500/15 rounded-full blur-2xl pointer-events-none" />
 
-        <form onSubmit={submitTodayCheckIn} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-2">
-              How connected do you feel today?
-            </label>
+        <div className="relative">
+          {!todayUserCheckIn ? (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">
+                  <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                  <span>Daily Relationship Check-In</span>
+                </div>
+                <span className="text-[11px] font-mono text-zinc-400">
+                  {todayDateStr}
+                </span>
+              </div>
 
-            {/* 1 - 5 scale buttons */}
-            <div className="grid grid-cols-5 gap-2">
-              {[
-                { score: 1, label: 'Distant' },
-                { score: 2, label: 'Quiet' },
-                { score: 3, label: 'Okay' },
-                { score: 4, label: 'Close' },
-                { score: 5, label: 'Connected' },
-              ].map((item) => {
-                const isSelected = selectedScore === item.score;
-                return (
+              <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
+                How are you feeling about your relationship today?
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1 mb-5 leading-relaxed">
+                A calm 30–60 second private reflection to notice your feelings and nurture mutual rhythm.
+              </p>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckInModalInitialTab('checkin');
+                    setShowCheckInModal(true);
+                  }}
+                  className="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-indigo-600 text-white font-semibold text-xs shadow-lg shadow-rose-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ring-1 ring-white/20"
+                >
+                  <span>Start Check-In</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckInModalInitialTab('history');
+                    setShowCheckInModal(true);
+                  }}
+                  className="py-3.5 px-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 font-medium text-xs border border-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Past Check-ins"
+                >
+                  <History className="w-4 h-4" />
+                  <span>History</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            /* Today's Check-in Complete Card */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">{todayUserCheckIn.feelingEmoji || '❤️'}</span>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-rose-400 block">
+                      Today's Check-In Complete 💗
+                    </span>
+                    <h3 className="text-base font-bold text-white">
+                      {todayUserCheckIn.feeling}
+                    </h3>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-1.5">
+                  {todayUserCheckIn.shareWithPartner ? (
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                      <Share2 className="w-2.5 h-2.5" /> Summary Shared
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold bg-zinc-800 text-zinc-400 flex items-center gap-1 border border-white/5">
+                      <Lock className="w-2.5 h-2.5" /> Private
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {todayUserCheckIn.areas && todayUserCheckIn.areas.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {todayUserCheckIn.areas.map(a => (
+                    <span key={a} className="text-[10px] font-medium px-2 py-0.5 rounded-lg bg-zinc-900 text-zinc-300 border border-white/5">
+                      {a}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {todayUserCheckIn.sharedSummary && (
+                <div className="p-3 rounded-xl bg-purple-950/20 border border-purple-500/20 text-xs text-purple-200 leading-relaxed">
+                  <span className="text-purple-400 font-semibold block text-[10px] mb-0.5">Shared with partner:</span>
+                  "{todayUserCheckIn.sharedSummary}"
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                <span className="text-[11px] text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Completed for today
+                </span>
+
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    key={item.score}
-                    onClick={() => setSelectedScore(item.score)}
-                    className={`py-3 px-1 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer ${
-                      isSelected 
-                        ? 'bg-gradient-to-b from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/25 scale-[1.03]' 
-                        : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 border border-white/5'
-                    }`}
+                    onClick={() => {
+                      setCheckInModalInitialTab('checkin');
+                      setShowCheckInModal(true);
+                    }}
+                    className="text-xs font-semibold text-rose-300 hover:text-rose-200 underline cursor-pointer"
                   >
-                    <span className="text-base font-bold">{item.score}</span>
-                    <span className="text-[9px] mt-0.5 truncate max-w-full px-0.5 opacity-85">
-                      {item.label}
-                    </span>
+                    Update
                   </button>
-                );
-              })}
+                  <span className="text-zinc-600">•</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCheckInModalInitialTab('history');
+                      setShowCheckInModal(true);
+                    }}
+                    className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                  >
+                    View History
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-              What would make today better? <span className="text-zinc-400 font-normal">(Optional)</span>
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Taking a walk together without our phones..."
-              value={betterText}
-              onChange={(e) => setBetterText(e.target.value)}
-              className="w-full bg-zinc-950/70 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-400 focus:outline-none focus:border-rose-500"
-            />
-          </div>
-
-          {/* Privacy & sharing control */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/50 border border-white/5">
-            <div className="flex items-center gap-2">
-              <Lock className="w-3.5 h-3.5 text-rose-400" />
-              <span className="text-xs text-zinc-300">Share with partner</span>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={shareWithPartner}
-                onChange={(e) => setShareWithPartner(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
-            </label>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loadingCheckIn}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-indigo-600 text-white font-medium text-xs shadow-lg shadow-rose-600/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            {loadingCheckIn ? (
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <span>{todayCheckedIn ? 'Update Today\'s Check-in' : 'Submit Today\'s Check-in'}</span>
-                <Send className="w-3.5 h-3.5" />
-              </>
-            )}
-          </button>
-        </form>
+          )}
+        </div>
       </div>
 
-      {/* Partner's shared checkin if available */}
-      {partnerProfile && partnerCheckIn && (
-        <div className="glass-card rounded-3xl p-5 border border-purple-500/20 bg-purple-950/10">
+      {/* Partner's Shared Reflection Card (When available from partner) */}
+      {partnerProfile && partnerSharedSummary && (
+        <div className="glass-card rounded-3xl p-5 border border-purple-500/30 bg-purple-950/15 animate-fadeIn">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
-              <span>❤️</span>
-              <span>{partnerProfile.displayName}'s Check-in Today</span>
+            <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+              <span>💌</span>
+              <span>Partner Reflection from {partnerProfile.displayName}</span>
             </span>
-            <span className="text-xs font-bold text-white bg-purple-500/20 px-2 py-0.5 rounded-md">
-              Level {partnerCheckIn.connectionScore}/5
+            <span className="text-[10px] font-mono text-zinc-400">
+              {partnerSharedSummary.date}
             </span>
           </div>
-          {partnerCheckIn.betterResponse ? (
-            <p className="text-xs text-zinc-300 italic bg-zinc-950/60 p-3 rounded-xl border border-white/5">
-              "{partnerCheckIn.betterResponse}"
-            </p>
-          ) : (
-            <p className="text-xs text-zinc-400">
-              {partnerProfile.displayName} checked in feeling connected today.
-            </p>
+          <p className="text-xs text-purple-100 font-medium leading-relaxed bg-black/30 p-3 rounded-2xl border border-purple-500/20">
+            "{partnerSharedSummary.sharedSummary}"
+          </p>
+          {partnerSharedSummary.areas && partnerSharedSummary.areas.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2.5">
+              {partnerSharedSummary.areas.map(a => (
+                <span key={a} className="text-[9px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  {a}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -737,6 +750,15 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
           </div>
         </div>
       )}
+
+      {/* Daily Relationship Check-In Modal */}
+      <DailyCheckInModal
+        isOpen={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+        initialTab={checkInModalInitialTab}
+        onOpenCoachWithTopic={onOpenCoachWithTopic}
+        onCheckInCompleted={loadCheckIns}
+      />
     </div>
   );
 };

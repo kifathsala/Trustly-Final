@@ -154,6 +154,7 @@ function MainApp() {
               setPairingInitialMode(mode);
               setShowPairingFlow(true);
             }}
+            onOpenCoachWithTopic={navigateToCoachWithTopic}
           />
         )}
 

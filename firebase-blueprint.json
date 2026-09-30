@@ -36,6 +36,42 @@
       },
       "required": ["inviteCode", "creatorId", "memberIds", "status"]
     },
+    "UserCheckIn": {
+      "title": "UserCheckIn",
+      "description": "Daily private relationship check-in with feeling, areas, optional reflection, and sharing preference",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "coupleId": { "type": "string" },
+        "feeling": { "type": "string" },
+        "feelingEmoji": { "type": "string" },
+        "areas": { "type": "array" },
+        "reflection": { "type": "string" },
+        "shareWithPartner": { "type": "boolean" },
+        "sharedSummary": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "feeling", "date", "createdAt"]
+    },
+    "SharedCheckInSummary": {
+      "title": "SharedCheckInSummary",
+      "description": "Sanitized neutral summary of partner check-in without private reflection",
+      "type": "object",
+      "properties": {
+        "coupleId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userDisplayName": { "type": "string" },
+        "feeling": { "type": "string" },
+        "feelingEmoji": { "type": "string" },
+        "areas": { "type": "array" },
+        "sharedSummary": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["coupleId", "userId", "sharedSummary", "date"]
+    },
     "CheckIn": {
       "title": "CheckIn",
       "description": "Daily relationship pulse check-in",
@@ -157,9 +193,17 @@
       "schema": "User",
       "description": "Private user profile documents"
     },
+    "/users/{userId}/checkIns/{checkInId}": {
+      "schema": "UserCheckIn",
+      "description": "Strictly owner-only private daily relationship check-ins"
+    },
     "/couples/{coupleId}": {
       "schema": "Couple",
       "description": "Shared couple pairing spaces"
+    },
+    "/couples/{coupleId}/sharedCheckIns/{checkInId}": {
+      "schema": "SharedCheckInSummary",
+      "description": "Sanitized shared partner check-in summary (no private reflection)"
     },
     "/checkIns/{checkInId}": {
       "schema": "CheckIn",

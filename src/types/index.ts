@@ -45,6 +45,41 @@ export interface CoupleSpace {
   updatedAt?: string;
 }
 
+export type RelationshipFeeling = 
+  | 'Very connected' 
+  | 'Good' 
+  | 'Okay' 
+  | 'A little distant' 
+  | 'Something is on my mind';
+
+export interface UserCheckIn {
+  id?: string;
+  userId: string;
+  coupleId?: string | null;
+  feeling: RelationshipFeeling;
+  feelingEmoji: string;
+  areas: string[];
+  reflection?: string; // Private by default, strictly never shared to partner
+  shareWithPartner: boolean;
+  sharedSummary?: string | null; // Sanitized neutral reflection for partner
+  date: string; // YYYY-MM-DD
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SharedCheckInSummary {
+  id: string;
+  coupleId: string;
+  userId: string;
+  userDisplayName?: string;
+  feeling: RelationshipFeeling;
+  feelingEmoji: string;
+  areas: string[];
+  sharedSummary: string;
+  date: string;
+  createdAt: string;
+}
+
 export interface DailyCheckIn {
   id?: string;
   userId: string;

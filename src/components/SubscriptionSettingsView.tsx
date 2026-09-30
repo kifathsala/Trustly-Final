@@ -24,10 +24,7 @@ export const SubscriptionSettingsView: React.FC<SubscriptionSettingsViewProps> =
   const { 
     isPlus, 
     subscription, 
-    openPricingModal, 
-    isDevMode, 
-    devSimulatedPlan, 
-    setDevSimulatedPlan 
+    openPricingModal 
   } = useSubscription();
 
   const [notice, setNotice] = useState<string | null>(null);
@@ -198,44 +195,6 @@ export const SubscriptionSettingsView: React.FC<SubscriptionSettingsViewProps> =
           <span>Restore Purchase</span>
         </button>
       </div>
-
-      {/* Development-Only Test Mode */}
-      {isDevMode && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
-            🛠️ Development Test Mode
-          </span>
-          <p className="text-[11px] text-zinc-400">
-            Simulate Free or Plus tier for testing feature gating. Not available in production.
-          </p>
-          <div className="flex items-center justify-center gap-2 pt-1">
-            <button
-              onClick={() => setDevSimulatedPlan('free')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-mono border cursor-pointer ${
-                devSimulatedPlan === 'free' ? 'bg-zinc-800 text-white border-white/20' : 'bg-zinc-950 text-zinc-400 border-white/5'
-              }`}
-            >
-              Simulate Free
-            </button>
-            <button
-              onClick={() => setDevSimulatedPlan('plus')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-mono border cursor-pointer ${
-                devSimulatedPlan === 'plus' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-zinc-950 text-zinc-400 border-white/5'
-              }`}
-            >
-              Simulate Plus
-            </button>
-            {devSimulatedPlan !== null && (
-              <button
-                onClick={() => setDevSimulatedPlan(null)}
-                className="px-2 py-1 text-[11px] text-zinc-500 hover:text-zinc-300 underline cursor-pointer"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

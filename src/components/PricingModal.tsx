@@ -31,7 +31,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
   initialPlan = 'yearly' 
 }) => {
   const { userProfile, currentUser } = useAuth();
-  const { isPlus, devSimulatedPlan, setDevSimulatedPlan, isDevMode } = useSubscription();
+  const { isPlus } = useSubscription();
 
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>(initialPlan);
   const [paymentNotice, setPaymentNotice] = useState<{ type: 'info' | 'error'; message: string; title?: string } | null>(null);
@@ -211,44 +211,6 @@ export const PricingModal: React.FC<PricingModalProps> = ({
             Maybe later
           </button>
         </div>
-
-        {/* DEVELOPMENT-ONLY TEST MODE (Never in production) */}
-        {isDevMode && (
-          <div className="mt-5 pt-4 border-t border-dashed border-amber-500/30 text-center space-y-2">
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
-              🛠️ Development Test Mode
-            </span>
-            <p className="text-[10px] text-zinc-400 leading-tight">
-              Toggle simulated tier for UI testing. Production requires server-side payment verification.
-            </p>
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <button
-                onClick={() => setDevSimulatedPlan('free')}
-                className={`px-3 py-1 rounded-lg text-xs font-mono cursor-pointer border ${
-                  devSimulatedPlan === 'free' ? 'bg-zinc-800 text-white border-white/20' : 'bg-zinc-950 text-zinc-400 border-white/5'
-                }`}
-              >
-                Simulate Free
-              </button>
-              <button
-                onClick={() => setDevSimulatedPlan('plus')}
-                className={`px-3 py-1 rounded-lg text-xs font-mono cursor-pointer border ${
-                  devSimulatedPlan === 'plus' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-zinc-950 text-zinc-400 border-white/5'
-                }`}
-              >
-                Simulate Plus
-              </button>
-              {devSimulatedPlan !== null && (
-                <button
-                  onClick={() => setDevSimulatedPlan(null)}
-                  className="px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-300 underline cursor-pointer"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 
-// Initialize Gemini SDK with runtime injected API Key
-const apiKey = process.env.GEMINI_API_KEY || (typeof window !== 'undefined' ? (window as unknown as { GEMINI_API_KEY?: string }).GEMINI_API_KEY : '') || '';
+// Initialize Gemini SDK with runtime injected or environment API Key
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || (typeof window !== 'undefined' ? (window as unknown as { GEMINI_API_KEY?: string }).GEMINI_API_KEY : '') || '';
 
 let aiClient: GoogleGenAI | null = null;
 try {
