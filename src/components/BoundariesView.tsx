@@ -8,7 +8,8 @@ import {
   query, 
   where, 
   updateDoc,
-  deleteDoc 
+  deleteDoc,
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { BoundaryItem } from '../types';
@@ -47,20 +48,20 @@ export const BoundariesView: React.FC = () => {
   ];
 
   useEffect(() => {
-    if (!coupleSpace) return;
-    loadBoundaries();
-  }, [coupleSpace]);
+    if (!coupleSpace?.id) return;
+    
+    // Real-time listener on boundaries subcollection inside coupleSpace
+    const bRef = collection(db, 'couples', coupleSpace.id, 'boundaries');
+    const unsub = onSnapshot(bRef, (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as BoundaryItem));
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setBoundaries(items);
+    }, (err) => {
+      console.warn("Real-time boundaries listener error:", err);
+    });
 
-  const loadBoundaries = async () => {
-    if (!coupleSpace) return;
-    try {
-      const q = query(collection(db, 'boundaries'), where('coupleId', '==', coupleSpace.id));
-      const snap = await getDocs(q);
-      setBoundaries(snap.docs.map(d => ({ id: d.id, ...d.data() } as BoundaryItem)));
-    } catch (e) {
-      console.warn("Load boundaries notice:", e);
-    }
-  };
+    return () => unsub();
+  }, [coupleSpace?.id]);
 
   const handleCreateBoundary = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +73,7 @@ export const BoundariesView: React.FC = () => {
         coupleId: coupleSpace.id,
         createdBy: userProfile.uid,
         creatorId: userProfile.uid,
-        creatorName: userProfile.displayName,
+        creatorName: userProfile.displayName || 'Partner',
         category,
         title: title.trim(),
         description: description.trim(),
@@ -80,23 +81,21 @@ export const BoundariesView: React.FC = () => {
         createdAt: new Date().toISOString()
       };
 
-      const ref = await addDoc(collection(db, 'boundaries'), newBoundary);
-      setBoundaries([{ id: ref.id, ...newBoundary }, ...boundaries]);
+      await addDoc(collection(db, 'couples', coupleSpace.id, 'boundaries'), newBoundary);
 
       setTitle('');
       setDescription('');
       setIsAddOpen(false);
     } catch (e) {
-      console.error(e);
+      console.error("Create boundary error:", e);
     } finally {
       setLoading(false);
     }
   };
 
   const updateStatus = async (item: BoundaryItem, nextStatus: 'pending' | 'discussing' | 'agreed') => {
-    if (!item.id) return;
-    setBoundaries(boundaries.map(b => b.id === item.id ? { ...b, status: nextStatus } : b));
-    await updateDoc(doc(db, 'boundaries', item.id), { status: nextStatus });
+    if (!item.id || !coupleSpace?.id) return;
+    await updateDoc(doc(db, 'couples', coupleSpace.id, 'boundaries', item.id), { status: nextStatus });
   };
 
   const filteredBoundaries = filterCategory === 'All' 

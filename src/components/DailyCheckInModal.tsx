@@ -218,8 +218,9 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
 
       // 2. VOLUNTARY PARTNER SUMMARY: If user explicitly opted to share with partner and is in couple space
       if (isShared && coupleSpace?.id) {
+        const sharedDocId = `${todayDateStr}_${userProfile.uid}`;
         const sharedSummaryDoc: SharedCheckInSummary = {
-          id: todayDateStr,
+          id: sharedDocId,
           coupleId: coupleSpace.id,
           userId: userProfile.uid,
           userDisplayName: userProfile.displayName || 'Partner',
@@ -231,7 +232,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
           createdAt: new Date().toISOString()
         };
 
-        const sharedDocRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', todayDateStr);
+        const sharedDocRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', sharedDocId);
         await setDoc(sharedDocRef, sharedSummaryDoc);
 
         // Also notify partner gracefully if helper is present

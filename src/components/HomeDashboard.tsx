@@ -219,6 +219,58 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
     return () => unsub();
   }, [coupleSpace?.id]);
 
+  // Real-time listener on couple shared check-in summaries
+  useEffect(() => {
+    if (!coupleSpace?.id || !userProfile) {
+      setPartnerSharedSummary(null);
+      return;
+    }
+
+    const sharedCol = collection(db, 'couples', coupleSpace.id, 'sharedCheckIns');
+    const unsub = onSnapshot(sharedCol, (snapshot) => {
+      const summaries = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as SharedCheckInSummary));
+
+      // Find partner's summary for today
+      const partnerToday = summaries.find(s => s.userId !== userProfile.uid && s.date === todayDateStr);
+      setPartnerSharedSummary(partnerToday || null);
+    }, (err) => {
+      console.warn("Shared check-ins listener notice:", err);
+    });
+
+    return () => unsub();
+  }, [coupleSpace?.id, userProfile?.uid, todayDateStr]);
+
+  // Real-time listener on couple shared conversation starters
+  useEffect(() => {
+    if (!coupleSpace?.id || !userProfile) {
+      setPartnerSharedConversation(null);
+      return;
+    }
+
+    const convCol = collection(db, 'couples', coupleSpace.id, 'sharedConversations');
+    const unsub = onSnapshot(convCol, (snapshot) => {
+      const items = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as SharedConversationStarter));
+
+      const partnerItems = items.filter(d => d.userId !== userProfile.uid);
+      if (partnerItems.length > 0) {
+        partnerItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setPartnerSharedConversation(partnerItems[0]);
+      } else {
+        setPartnerSharedConversation(null);
+      }
+    }, (err) => {
+      console.warn("Shared conversations listener notice:", err);
+    });
+
+    return () => unsub();
+  }, [coupleSpace?.id, userProfile?.uid]);
+
   const loadConversationStarters = async () => {
     if (!userProfile) return;
     try {
@@ -288,20 +340,22 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
 
       // 3. If in couple, check if partner shared summary today
       if (partnerProfile && coupleSpace?.id) {
-        const partnerSummaryRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', todayDateStr);
+        const partnerSummaryRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', `${todayDateStr}_${partnerProfile.uid}`);
         const partnerSummarySnap = await getDoc(partnerSummaryRef);
         if (partnerSummarySnap.exists()) {
           const pData = partnerSummarySnap.data() as SharedCheckInSummary;
-          if (pData.userId !== userProfile.uid) {
-            setPartnerSharedSummary(pData);
-          } else {
-            setPartnerSharedSummary(null);
-          }
+          setPartnerSharedSummary(pData);
         } else {
-          setPartnerSharedSummary(null);
+          // Fallback check legacy format
+          const legacySummaryRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', todayDateStr);
+          const legacySummarySnap = await getDoc(legacySummaryRef);
+          if (legacySummarySnap.exists()) {
+            const pData = legacySummarySnap.data() as SharedCheckInSummary;
+            if (pData.userId !== userProfile.uid) {
+              setPartnerSharedSummary(pData);
+            }
+          }
         }
-      } else {
-        setPartnerSharedSummary(null);
       }
     } catch (e) {
       console.warn("Notice loading check-ins:", e);
