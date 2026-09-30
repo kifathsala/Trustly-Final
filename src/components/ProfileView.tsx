@@ -26,7 +26,6 @@ interface ProfileViewProps {
   onOpenPrivacy: () => void;
   onOpenJournal: () => void;
   onOpenBoundaries: () => void;
-  onOpenAdmin?: () => void;
   onOpenSubscription: () => void;
 }
 
@@ -34,7 +33,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenPrivacy,
   onOpenJournal,
   onOpenBoundaries,
-  onOpenAdmin,
   onOpenSubscription
 }) => {
   const { userProfile, partnerProfile, coupleSpace, logout, updateUserProfile, isAdmin } = useAuth();
@@ -44,6 +42,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [relationshipStatus, setRelationshipStatus] = useState(userProfile?.relationshipStatus || 'Dating');
   const [saving, setSaving] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   // Birthday & DOB state
   const rawDOB = userProfile?.dateOfBirth || userProfile?.birthday || '';
@@ -91,15 +91,31 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = displayName.trim();
+    if (!trimmedName) {
+      setProfileError("Display name cannot be empty.");
+      return;
+    }
+
     setSaving(true);
+    setProfileError(null);
+    setProfileSuccess(false);
+
     try {
       await updateUserProfile({
-        displayName: displayName.trim(),
-        relationshipStatus
+        displayName: trimmedName,
+        relationshipStatus,
+        relationshipType: relationshipStatus,
+        updatedAt: new Date().toISOString()
       });
-      setIsEditing(false);
-    } catch (e) {
-      console.error(e);
+      setProfileSuccess(true);
+      setTimeout(() => {
+        setProfileSuccess(false);
+        setIsEditing(false);
+      }, 1200);
+    } catch (err: any) {
+      console.error("Profile update error:", err);
+      setProfileError("Could not update profile. Please check your connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -255,12 +271,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </select>
             </div>
 
+            {profileError && (
+              <p className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                {profileError}
+              </p>
+            )}
+
+            {profileSuccess && (
+              <p className="text-xs text-emerald-400 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5" /> Profile updated successfully!
+              </p>
+            )}
+
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-all cursor-pointer"
+              className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
-              {saving ? 'Updating...' : 'Save Changes'}
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              <span>{saving ? 'Updating...' : 'Save Changes'}</span>
             </button>
           </form>
         )}
@@ -459,26 +488,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
           <ChevronRight className="w-4 h-4 text-zinc-400" />
         </button>
-
-        {/* Admin Console (Visible if Admin) */}
-        {isAdmin && (
-          <button
-            onClick={onOpenAdmin}
-            className="w-full p-4 rounded-2xl bg-rose-950/20 hover:bg-rose-950/40 border border-rose-500/30 flex items-center justify-between transition-all cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="w-5 h-5 text-rose-400" />
-              <div className="text-left">
-                <span className="text-xs font-semibold text-rose-300 block flex items-center gap-1.5">
-                  <span>Firebase Admin Console</span>
-                  <span className="px-1.5 py-0.2 text-[9px] bg-rose-500 text-white rounded font-bold">ALL ACCESS</span>
-                </span>
-                <span className="text-[10px] text-zinc-400">View and manage all Firestore collections & documents</span>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-rose-400" />
-          </button>
-        )}
 
         {/* Notifications */}
         <button

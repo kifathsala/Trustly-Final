@@ -19,18 +19,17 @@ import { BoundariesView } from './components/BoundariesView';
 import { PrivateJournalView } from './components/PrivateJournalView';
 import { PrivacyCenterView } from './components/PrivacyCenterView';
 import { ProfileView } from './components/ProfileView';
-import { AdminConsoleView } from './components/AdminConsoleView';
 import { SubscriptionSettingsView } from './components/SubscriptionSettingsView';
 import { PricingModal } from './components/PricingModal';
 import { UpgradeModal } from './components/UpgradeModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 
 function MainApp() {
-  const { currentUser, userProfile, loading, updateUserProfile, isAdmin } = useAuth();
+  const { currentUser, userProfile, loading, updateUserProfile } = useAuth();
   const { showPricingModal, closePricingModal } = useSubscription();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState<'home' | 'trust' | 'coach' | 'couple' | 'profile' | 'journal' | 'boundaries' | 'privacy' | 'admin' | 'subscription'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'trust' | 'coach' | 'couple' | 'profile' | 'journal' | 'boundaries' | 'privacy' | 'subscription'>('home');
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup' | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showPairingFlow, setShowPairingFlow] = useState(false);
@@ -177,17 +176,12 @@ function MainApp() {
             onOpenPrivacy={() => setActiveTab('privacy')}
             onOpenJournal={() => setActiveTab('journal')}
             onOpenBoundaries={() => setActiveTab('boundaries')}
-            onOpenAdmin={() => setActiveTab('admin')}
             onOpenSubscription={() => setActiveTab('subscription')}
           />
         )}
 
         {activeTab === 'subscription' && (
           <SubscriptionSettingsView onBack={() => setActiveTab('profile')} />
-        )}
-
-        {activeTab === 'admin' && (
-          <AdminConsoleView />
         )}
 
         {activeTab === 'journal' && (

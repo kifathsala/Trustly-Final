@@ -332,8 +332,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUserProfile = async (data: Partial<UserProfile>) => {
     if (!currentUser) return;
     const ref = doc(db, 'users', currentUser.uid);
-    await updateDoc(ref, data);
-    setUserProfile(prev => prev ? { ...prev, ...data } : null);
+    const updatedData = { ...data, updatedAt: new Date().toISOString() };
+    await setDoc(ref, updatedData, { merge: true });
+
+    // Sync Firebase Auth profile if displayName or photoURL changed
+    if (data.displayName || data.photoURL) {
+      try {
+        await updateProfile(currentUser, {
+          displayName: data.displayName ?? currentUser.displayName,
+          photoURL: data.photoURL ?? currentUser.photoURL
+        });
+      } catch (authErr) {
+        console.warn("Notice updating Auth profile:", authErr);
+      }
+    }
+
+    setUserProfile(prev => prev ? { ...prev, ...updatedData } : {
+      uid: currentUser.uid,
+      email: currentUser.email || '',
+      displayName: data.displayName || currentUser.displayName || 'User',
+      photoURL: data.photoURL || currentUser.photoURL || '',
+      relationshipStatus: data.relationshipStatus || 'Dating',
+      relationshipType: data.relationshipType || 'Dating',
+      coupleId: data.coupleId || null,
+      onboardingCompleted: true,
+      createdAt: new Date().toISOString(),
+      ...updatedData
+    });
   };
 
   const createCouple = async (spaceName: string, relationshipType?: string): Promise<CoupleSpace> => {
