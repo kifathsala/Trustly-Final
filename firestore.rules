@@ -48,6 +48,11 @@ service cloud.firestore {
       match /checkIns/{checkInId} {
         allow read, write: if isOwner(userId) || isMasterAdmin();
       }
+
+      // Private Conversation Starters & reflections (STRICTLY OWNER-ONLY)
+      match /conversationStarters/{starterId} {
+        allow read, write: if isOwner(userId) || isMasterAdmin();
+      }
     }
 
     // Couples Space
@@ -133,6 +138,13 @@ service cloud.firestore {
 
       // Shared Check-In Summaries (accessible by verified couple members, sanitized summary only)
       match /sharedCheckIns/{checkInId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || isMasterAdmin());
+      }
+
+      // Shared Conversation Starters (accessible by verified couple members)
+      match /sharedConversations/{starterId} {
         allow read: if isCoupleMember(coupleId);
         allow create: if isCoupleMember(coupleId) && request.resource.data.userId == request.auth.uid;
         allow update, delete: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || isMasterAdmin());

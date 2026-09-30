@@ -90,9 +90,9 @@ export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) 
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] max-w-md mx-auto pb-4">
+    <div className="flex flex-col h-[calc(100vh-160px)] max-w-md mx-auto pb-20 animate-fadeIn">
       {/* Header */}
-      <div className="pt-2 mb-3">
+      <div className="pt-2 mb-3 shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-medium mb-1.5">
@@ -108,17 +108,17 @@ export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) 
       </div>
 
       {/* Quick Action Buttons */}
-      <div className="overflow-x-auto no-scrollbar py-2 -mx-2 px-2 flex gap-2">
+      <div className="overflow-x-auto no-scrollbar py-2 -mx-2 px-2 flex gap-2 shrink-0">
         {quickActions.map((qa) => {
           const isSelected = activeMode === qa.mode;
           return (
             <button
               key={qa.mode}
               onClick={() => handleSelectQuickAction(qa)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                 isSelected 
-                  ? 'bg-violet-600/20 border-violet-500 text-violet-200' 
-                  : 'bg-zinc-900/60 border-white/5 text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-violet-600/25 border-violet-500 text-violet-200 shadow-md shadow-violet-600/20' 
+                  : 'bg-zinc-900/70 border-white/10 text-zinc-400 hover:text-zinc-200 hover:border-white/20'
               }`}
             >
               <span>{qa.icon}</span>
@@ -143,7 +143,7 @@ export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) 
             <div 
               className={`max-w-[85%] rounded-3xl p-4 text-xs leading-relaxed ${
                 m.role === 'user' 
-                  ? 'bg-gradient-to-r from-rose-600 to-indigo-600 text-white shadow-lg' 
+                  ? 'bg-gradient-to-r from-rose-600 to-indigo-600 text-white shadow-lg shadow-rose-600/15' 
                   : 'bg-zinc-900/90 border border-white/10 text-zinc-200 shadow-xl'
               }`}
             >
@@ -160,7 +160,7 @@ export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) 
         ))}
 
         {loading && (
-          <div className="flex items-center gap-2 p-3 rounded-2xl bg-zinc-900/80 border border-white/5 w-fit">
+          <div className="flex items-center gap-2 p-3.5 rounded-2xl bg-zinc-900/90 border border-white/10 w-fit shadow-md">
             <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" />
             <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce [animation-delay:0.2s]" />
             <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce [animation-delay:0.4s]" />
@@ -170,7 +170,7 @@ export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) 
       </div>
 
       {/* Fixed bottom composer */}
-      <div className="pt-2">
+      <div className="pt-2 shrink-0">
         <form 
           onSubmit={(e) => {
             e.preventDefault();
@@ -184,14 +184,14 @@ export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) 
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={loading}
-            className="w-full bg-zinc-900/95 border border-white/15 rounded-2xl pl-4 pr-12 py-3.5 text-xs text-white placeholder-zinc-400 focus:outline-none focus:border-violet-500 shadow-xl"
+            className="w-full bg-zinc-900/95 border border-white/15 rounded-2xl pl-4 pr-12 py-3.5 text-xs text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500 shadow-xl"
           />
           <button
             type="submit"
             disabled={loading || !inputText.trim()}
             className={`absolute right-2 p-2 rounded-xl transition-all ${
               inputText.trim() 
-                ? 'bg-violet-600 text-white hover:bg-violet-500 shadow-md' 
+                ? 'bg-violet-600 text-white hover:bg-violet-500 shadow-md active:scale-95 cursor-pointer' 
                 : 'text-zinc-600 cursor-not-allowed'
             }`}
           >

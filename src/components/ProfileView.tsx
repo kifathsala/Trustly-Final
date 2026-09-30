@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useSubscription } from '../context/SubscriptionContext';
 import { formatBirthdayDisplay, parseBirthdayComponents } from '../lib/birthday';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface ProfileViewProps {
   onOpenPrivacy: () => void;
@@ -184,7 +185,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
 
   return (
-    <div className="space-y-6 pb-28 max-w-md mx-auto">
+    <div className="space-y-6 pb-28 max-w-md mx-auto animate-fadeIn">
       {/* Header */}
       <div className="pt-2 flex items-center justify-between">
         <div>
@@ -439,6 +440,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {/* Settings List */}
       <div className="space-y-2">
+        {/* PWA App Install */}
+        <PWAInstallButton variant="settings" />
+
         {/* Subscription & Billing */}
         <button
           onClick={onOpenSubscription}

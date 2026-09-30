@@ -140,7 +140,7 @@ export const BoundariesView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-28 animate-fadeIn">
       {/* Header */}
       <div className="pt-2 flex items-center justify-between">
         <div>

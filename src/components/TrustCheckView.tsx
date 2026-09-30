@@ -116,7 +116,7 @@ export const TrustCheckView: React.FC<TrustCheckProps> = ({ onOpenCoachWithTopic
   };
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-28 animate-fadeIn">
       {/* Header */}
       <div className="pt-2">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-medium mb-2">

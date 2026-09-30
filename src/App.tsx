@@ -23,6 +23,7 @@ import { AdminConsoleView } from './components/AdminConsoleView';
 import { SubscriptionSettingsView } from './components/SubscriptionSettingsView';
 import { PricingModal } from './components/PricingModal';
 import { UpgradeModal } from './components/UpgradeModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 function MainApp() {
   const { currentUser, userProfile, loading, updateUserProfile, isAdmin } = useAuth();
@@ -139,6 +140,7 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-[#070709] text-zinc-100 flex flex-col justify-between selection:bg-rose-500/20 selection:text-rose-200">
+      <OfflineIndicator />
       <main className="max-w-md w-full mx-auto px-4 pt-4 flex-1">
         {activeTab === 'home' && (
           <HomeDashboard 

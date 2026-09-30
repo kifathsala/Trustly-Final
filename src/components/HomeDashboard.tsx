@@ -387,7 +387,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-28 animate-fadeIn">
       {/* Top Header */}
       <div className="flex items-center justify-between pt-2">
         <div>

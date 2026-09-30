@@ -1,17 +1,80 @@
 {
-  "name": "TRUSTLY - Relationship Clarity",
+  "id": "/",
+  "name": "TRUSTLY",
   "short_name": "TRUSTLY",
-  "description": "Relationships deserve clarity. A privacy-first relationship app.",
+  "description": "Privacy-first relationship companion for couples.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#09090b",
+  "orientation": "portrait",
   "theme_color": "#09090b",
+  "background_color": "#09090b",
+  "dir": "ltr",
+  "lang": "en",
+  "categories": [
+    "lifestyle",
+    "social",
+    "productivity"
+  ],
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Daily Check-In",
+      "short_name": "Check-In",
+      "description": "Take a 30-second relationship check-in",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Couple Space",
+      "short_name": "Couples",
+      "description": "View shared memories, goals, and notes",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "AI Relationship Coach",
+      "short_name": "Coach",
+      "description": "Get empathetic relationship communication guidance",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
