@@ -199,6 +199,21 @@
         "createdAt": { "type": "string" }
       },
       "required": ["coupleId", "creatorId", "content"]
+    },
+    "BirthdayMessage": {
+      "title": "BirthdayMessage",
+      "description": "Heartfelt birthday message sent between couple partners",
+      "type": "object",
+      "properties": {
+        "coupleId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "message": { "type": "string" },
+        "birthdayDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["coupleId", "senderId", "recipientId", "message", "createdAt"]
     }
   },
   "firestore": {
@@ -213,6 +228,10 @@
     "/couples/{coupleId}": {
       "schema": "Couple",
       "description": "Shared couple pairing spaces"
+    },
+    "/couples/{coupleId}/birthdayMessages/{messageId}": {
+      "schema": "BirthdayMessage",
+      "description": "Private heartfelt birthday greetings shared between couple members"
     },
     "/couples/{coupleId}/sharedCheckIns/{checkInId}": {
       "schema": "SharedCheckInSummary",

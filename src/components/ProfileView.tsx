@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { 
@@ -7,16 +7,19 @@ import {
   Bell, 
   Lock, 
   LogOut, 
-  Trash2, 
   Heart, 
-  Sparkles, 
   ChevronRight,
   Crown,
   CheckCircle2,
-  BookHeart
+  BookHeart,
+  Calendar,
+  Sparkles,
+  Info,
+  Loader2,
+  Check
 } from 'lucide-react';
-
 import { useSubscription } from '../context/SubscriptionContext';
+import { formatBirthdayDisplay, parseBirthdayComponents } from '../lib/birthday';
 
 interface ProfileViewProps {
   onOpenPrivacy: () => void;
@@ -39,10 +42,38 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [relationshipStatus, setRelationshipStatus] = useState(userProfile?.relationshipStatus || 'Dating');
-  const [birthday, setBirthday] = useState(userProfile?.birthday || '');
+  const [saving, setSaving] = useState(false);
+
+  // Birthday & DOB state
+  const rawDOB = userProfile?.dateOfBirth || userProfile?.birthday || '';
+  const parsedDOB = parseBirthdayComponents(rawDOB);
+
+  const [birthDay, setBirthDay] = useState<string>(parsedDOB ? String(parsedDOB.day) : '');
+  const [birthMonth, setBirthMonth] = useState<string>(parsedDOB ? String(parsedDOB.month) : '');
+  const [birthYear, setBirthYear] = useState<string>(parsedDOB?.year ? String(parsedDOB.year) : '');
+  const [shareBirthday, setShareBirthday] = useState<boolean>(Boolean(userProfile?.shareBirthday));
+  const [savingBirthday, setSavingBirthday] = useState(false);
+  const [birthdaySaveSuccess, setBirthdaySaveSuccess] = useState(false);
+  const [birthdayError, setBirthdayError] = useState<string | null>(null);
+
+  // Notifications modal
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [saving, setSaving] = useState(false);
+
+  // Sync state when userProfile loads/updates
+  useEffect(() => {
+    if (userProfile) {
+      setDisplayName(userProfile.displayName || '');
+      setRelationshipStatus(userProfile.relationshipStatus || 'Dating');
+      const parsed = parseBirthdayComponents(userProfile.dateOfBirth || userProfile.birthday);
+      if (parsed) {
+        setBirthDay(String(parsed.day));
+        setBirthMonth(String(parsed.month));
+        setBirthYear(parsed.year ? String(parsed.year) : '');
+      }
+      setShareBirthday(Boolean(userProfile.shareBirthday));
+    }
+  }, [userProfile]);
 
   const openNotifications = async () => {
     setShowNotifModal(true);
@@ -63,8 +94,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     try {
       await updateUserProfile({
         displayName: displayName.trim(),
-        relationshipStatus,
-        birthday: birthday || undefined
+        relationshipStatus
       });
       setIsEditing(false);
     } catch (e) {
@@ -74,8 +104,87 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
   };
 
+  const handleSaveBirthday = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setBirthdayError(null);
+    setBirthdaySaveSuccess(false);
+
+    if (!birthDay || !birthMonth || !birthYear) {
+      setBirthdayError("Please select day, month, and year.");
+      return;
+    }
+
+    const dayNum = parseInt(birthDay, 10);
+    const monthNum = parseInt(birthMonth, 10);
+    const yearNum = parseInt(birthYear, 10);
+
+    if (isNaN(dayNum) || isNaN(monthNum) || isNaN(yearNum)) {
+      setBirthdayError("Please enter a valid date.");
+      return;
+    }
+
+    // Days in month validation
+    const maxDays = new Date(yearNum, monthNum, 0).getDate();
+    if (dayNum < 1 || dayNum > maxDays) {
+      setBirthdayError(`Invalid date. Selected month has ${maxDays} days.`);
+      return;
+    }
+
+    const formattedDOB = `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+
+    setSavingBirthday(true);
+    try {
+      await updateUserProfile({
+        dateOfBirth: formattedDOB,
+        birthday: formattedDOB,
+        shareBirthday: shareBirthday
+      });
+      setBirthdaySaveSuccess(true);
+      setTimeout(() => setBirthdaySaveSuccess(false), 3000);
+    } catch (err: any) {
+      console.error("Save birthday error:", err);
+      setBirthdayError("Could not update birthday. Please try again.");
+    } finally {
+      setSavingBirthday(false);
+    }
+  };
+
+  const handleToggleShareBirthday = async (newVal: boolean) => {
+    setShareBirthday(newVal);
+    if (userProfile?.dateOfBirth || (birthDay && birthMonth && birthYear)) {
+      try {
+        await updateUserProfile({
+          shareBirthday: newVal
+        });
+        setBirthdaySaveSuccess(true);
+        setTimeout(() => setBirthdaySaveSuccess(false), 2000);
+      } catch (err) {
+        console.error("Toggle share birthday error:", err);
+      }
+    }
+  };
+
+  const months = [
+    { value: '1', name: 'January' },
+    { value: '2', name: 'February' },
+    { value: '3', name: 'March' },
+    { value: '4', name: 'April' },
+    { value: '5', name: 'May' },
+    { value: '6', name: 'June' },
+    { value: '7', name: 'July' },
+    { value: '8', name: 'August' },
+    { value: '9', name: 'September' },
+    { value: '10', name: 'October' },
+    { value: '11', name: 'November' },
+    { value: '12', name: 'December' }
+  ];
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 100 }, (_, i) => String(currentYear - i));
+  const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
+
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-28 max-w-md mx-auto">
       {/* Header */}
       <div className="pt-2 flex items-center justify-between">
         <div>
@@ -85,13 +194,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
         <button
           onClick={() => setIsEditing(!isEditing)}
-          className="text-xs font-semibold text-rose-400 hover:text-rose-300 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/20"
+          className="text-xs font-semibold text-rose-400 hover:text-rose-300 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/20 cursor-pointer transition-all"
         >
           {isEditing ? 'Cancel' : 'Edit Profile'}
         </button>
       </div>
 
-      {/* User Card */}
+      {/* User Identity Card */}
       <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-rose-500 via-purple-600 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-rose-500/20 shrink-0">
@@ -118,7 +227,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
         {/* Inline Edit Form */}
         {isEditing && (
-          <form onSubmit={handleSaveProfile} className="mt-5 pt-4 border-t border-white/10 space-y-3.5">
+          <form onSubmit={handleSaveProfile} className="mt-5 pt-4 border-t border-white/10 space-y-3.5 animate-fadeIn">
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1">Display Name</label>
               <input
@@ -145,25 +254,155 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">Optional Birthday</label>
-              <input
-                type="date"
-                value={birthday}
-                onChange={(e) => setBirthday(e.target.value)}
-                className="w-full bg-zinc-950/80 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
-              />
-            </div>
-
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-all"
+              className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-all cursor-pointer"
             >
               {saving ? 'Updating...' : 'Save Changes'}
             </button>
           </form>
         )}
+      </div>
+
+      {/* ===================================================================== */}
+      {/* 1. BIRTHDAY & PRIVACY-FIRST DOB SECTION */}
+      {/* ===================================================================== */}
+      <div className="glass-card rounded-3xl p-6 border border-white/10 space-y-5 shadow-2xl relative">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/25 flex items-center justify-center text-xl">
+              🎂
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span>Birthday</span>
+                {rawDOB && (
+                  <span className="text-[11px] font-semibold text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                    {formatBirthdayDisplay(rawDOB, false)}
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Set your date of birth for celebrations and reminders.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-zinc-900 border border-white/10 text-zinc-300">
+            <Lock className="w-3 h-3 text-emerald-400" />
+            <span>Private by default</span>
+          </div>
+        </div>
+
+        {/* Date Selector Inputs */}
+        <form onSubmit={handleSaveBirthday} className="space-y-4 pt-1 border-t border-white/5">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-300 mb-2">
+              Select your date of birth
+            </label>
+            
+            <div className="grid grid-cols-3 gap-2">
+              {/* Day */}
+              <div>
+                <span className="text-[10px] text-zinc-400 block mb-1">Day</span>
+                <select
+                  value={birthDay}
+                  onChange={(e) => setBirthDay(e.target.value)}
+                  className="w-full bg-zinc-950/90 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-rose-500 cursor-pointer"
+                >
+                  <option value="">Day</option>
+                  {days.map(d => (
+                    <option key={d} value={d} className="bg-zinc-900">{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Month */}
+              <div>
+                <span className="text-[10px] text-zinc-400 block mb-1">Month</span>
+                <select
+                  value={birthMonth}
+                  onChange={(e) => setBirthMonth(e.target.value)}
+                  className="w-full bg-zinc-950/90 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-rose-500 cursor-pointer"
+                >
+                  <option value="">Month</option>
+                  {months.map(m => (
+                    <option key={m.value} value={m.value} className="bg-zinc-900">{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Year */}
+              <div>
+                <span className="text-[10px] text-zinc-400 block mb-1">Year</span>
+                <select
+                  value={birthYear}
+                  onChange={(e) => setBirthYear(e.target.value)}
+                  className="w-full bg-zinc-950/90 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-rose-500 cursor-pointer"
+                >
+                  <option value="">Year</option>
+                  {years.map(y => (
+                    <option key={y} value={y} className="bg-zinc-900">{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {birthdayError && (
+            <p className="text-xs text-rose-400">{birthdayError}</p>
+          )}
+
+          {/* Privacy Toggle: Share with partner */}
+          <div className="p-4 rounded-2xl bg-zinc-950/60 border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-semibold text-white">
+                  Share my birthday with my partner
+                </h4>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Allows your partner to see your birthday date (e.g. "{formatBirthdayDisplay(rawDOB || '2000-12-12', false)}") and send warm wishes.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
+                <input
+                  type="checkbox"
+                  checked={shareBirthday}
+                  onChange={(e) => handleToggleShareBirthday(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-10 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600" />
+              </label>
+            </div>
+
+            <div className="pt-1 flex items-start gap-1.5 text-[10px] text-zinc-500">
+              <Info className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
+              <span>
+                {shareBirthday 
+                  ? 'Your partner will see your birthday date. Your birth year and exact age remain completely private.'
+                  : 'Your partner cannot see your birthday date or birth year. Information is strictly owner-only.'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            {birthdaySaveSuccess ? (
+              <span className="text-xs text-emerald-400 font-medium flex items-center gap-1">
+                <Check className="w-3.5 h-3.5" /> Birthday saved!
+              </span>
+            ) : <div />}
+
+            <button
+              type="submit"
+              disabled={savingBirthday || !birthDay || !birthMonth || !birthYear}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-indigo-600 text-white text-xs font-semibold shadow-md disabled:opacity-50 flex items-center gap-1.5 cursor-pointer hover:opacity-95 transition-all"
+            >
+              {savingBirthday ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              <span>Save Birthday</span>
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Premium Membership Banner */}
@@ -216,11 +455,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
           <ChevronRight className="w-4 h-4 text-zinc-400" />
         </button>
+
         {/* Admin Console (Visible if Admin) */}
         {isAdmin && (
           <button
             onClick={onOpenAdmin}
-            className="w-full p-4 rounded-2xl bg-rose-950/20 hover:bg-rose-950/40 border border-rose-500/30 flex items-center justify-between transition-all"
+            className="w-full p-4 rounded-2xl bg-rose-950/20 hover:bg-rose-950/40 border border-rose-500/30 flex items-center justify-between transition-all cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <ShieldCheck className="w-5 h-5 text-rose-400" />
@@ -254,7 +494,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         {/* Privacy Center */}
         <button
           onClick={onOpenPrivacy}
-          className="w-full p-4 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/90 border border-white/5 flex items-center justify-between transition-all"
+          className="w-full p-4 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/90 border border-white/5 flex items-center justify-between transition-all cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
@@ -269,7 +509,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         {/* Private Journal */}
         <button
           onClick={onOpenJournal}
-          className="w-full p-4 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/90 border border-white/5 flex items-center justify-between transition-all"
+          className="w-full p-4 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/90 border border-white/5 flex items-center justify-between transition-all cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <BookHeart className="w-5 h-5 text-rose-400" />
@@ -284,7 +524,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         {/* Boundaries */}
         <button
           onClick={onOpenBoundaries}
-          className="w-full p-4 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/90 border border-white/5 flex items-center justify-between transition-all"
+          className="w-full p-4 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/90 border border-white/5 flex items-center justify-between transition-all cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <Heart className="w-5 h-5 text-violet-400" />
@@ -299,7 +539,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         {/* Sign Out */}
         <button
           onClick={() => logout()}
-          className="w-full p-4 rounded-2xl bg-zinc-900/60 hover:bg-rose-950/20 border border-white/5 hover:border-rose-500/20 flex items-center justify-between transition-all group"
+          className="w-full p-4 rounded-2xl bg-zinc-900/60 hover:bg-rose-950/20 border border-white/5 hover:border-rose-500/20 flex items-center justify-between transition-all group cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <LogOut className="w-5 h-5 text-zinc-400 group-hover:text-rose-400" />

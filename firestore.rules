@@ -115,6 +115,22 @@ service cloud.firestore {
         allow delete: if isCoupleMember(coupleId);
       }
 
+      // Heartfelt birthday messages between partners
+      match /birthdayMessages/{messageId} {
+        allow read: if isCoupleMember(coupleId) && (
+          resource.data.senderId == request.auth.uid || 
+          resource.data.recipientId == request.auth.uid ||
+          isMasterAdmin()
+        );
+        allow create: if isCoupleMember(coupleId) && 
+          request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if isCoupleMember(coupleId) && (
+          resource.data.senderId == request.auth.uid || 
+          resource.data.recipientId == request.auth.uid || 
+          isMasterAdmin()
+        );
+      }
+
       // Shared Check-In Summaries (accessible by verified couple members, sanitized summary only)
       match /sharedCheckIns/{checkInId} {
         allow read: if isCoupleMember(coupleId);

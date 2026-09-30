@@ -14,10 +14,13 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { DailyCheckIn, UserCheckIn, SharedCheckInSummary, SharedConversationStarter, CoupleGoal } from '../types';
+import { DailyCheckIn, UserCheckIn, SharedCheckInSummary, SharedConversationStarter, CoupleGoal, BirthdayMessage } from '../types';
 import { DailyCheckInModal } from './DailyCheckInModal';
 import { ConversationStartersModal } from './ConversationStartersModal';
 import { CoupleGoalsModal } from './CoupleGoalsModal';
+import { isBirthdayToday, formatBirthdayDisplay } from '../lib/birthday';
+import { generateBirthdayMessageCoach } from '../lib/gemini';
+import { sendPartnerNotification } from '../lib/notifications';
 import { 
   Heart, 
   Sparkles, 
@@ -37,7 +40,11 @@ import {
   Share2,
   Trophy,
   Target,
-  Plus
+  Plus,
+  Gift,
+  Wand2,
+  Loader2,
+  Check
 } from 'lucide-react';
 
 interface HomeDashboardProps {
@@ -83,6 +90,24 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
   const [loadingNotifications, setLoadingNotifications] = useState<boolean>(false);
 
+  // Birthday feature states
+  const isUserBirthday = isBirthdayToday(userProfile?.dateOfBirth || userProfile?.birthday);
+  const isPartnerBirthday = Boolean(
+    partnerProfile?.shareBirthday && 
+    isBirthdayToday(partnerProfile?.dateOfBirth || partnerProfile?.birthday)
+  );
+
+  const [receivedBirthdayMessages, setReceivedBirthdayMessages] = useState<BirthdayMessage[]>([]);
+  const [showBirthdayComposer, setShowBirthdayComposer] = useState<boolean>(false);
+  const [showBirthdayConfirm, setShowBirthdayConfirm] = useState<boolean>(false);
+  const [birthdayDraft, setBirthdayDraft] = useState<string>('');
+  const [coachNotes, setCoachNotes] = useState<string>('');
+  const [selectedTone, setSelectedTone] = useState<'heartfelt' | 'playful' | 'deeply_romantic' | 'grateful'>('heartfelt');
+  const [isGeneratingCoachMsg, setIsGeneratingCoachMsg] = useState<boolean>(false);
+  const [isSendingBirthdayMsg, setIsSendingBirthdayMsg] = useState<boolean>(false);
+  const [birthdaySentSuccess, setBirthdaySentSuccess] = useState<boolean>(false);
+  const [showCoachInput, setShowCoachInput] = useState<boolean>(false);
+
   const todayDateStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -91,6 +116,86 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
     loadConversationStarters();
     loadNotifications();
   }, [userProfile, partnerProfile, coupleSpace]);
+
+  // Real-time listener on couple birthday messages
+  useEffect(() => {
+    if (!coupleSpace?.id) {
+      setReceivedBirthdayMessages([]);
+      return;
+    }
+
+    const bRef = collection(db, 'couples', coupleSpace.id, 'birthdayMessages');
+    const unsub = onSnapshot(bRef, (snapshot) => {
+      const items = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as BirthdayMessage));
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setReceivedBirthdayMessages(items);
+    }, (err) => {
+      console.warn("Birthday messages listener notice:", err);
+    });
+
+    return () => unsub();
+  }, [coupleSpace?.id]);
+
+  const handleGenerateCoachBirthdayMessage = async () => {
+    if (!partnerProfile) return;
+    setIsGeneratingCoachMsg(true);
+    try {
+      const generated = await generateBirthdayMessageCoach(
+        partnerProfile.displayName || 'Partner',
+        coachNotes,
+        selectedTone
+      );
+      setBirthdayDraft(generated);
+      setShowCoachInput(false);
+    } catch (err) {
+      console.warn("Coach generator error:", err);
+    } finally {
+      setIsGeneratingCoachMsg(false);
+    }
+  };
+
+  const handleConfirmSendBirthdayMessage = async () => {
+    if (!coupleSpace?.id || !userProfile || !partnerProfile || !birthdayDraft.trim()) return;
+    setIsSendingBirthdayMsg(true);
+    try {
+      const newMsgId = `bday_${Date.now()}`;
+      const msgDocRef = doc(db, 'couples', coupleSpace.id, 'birthdayMessages', newMsgId);
+      
+      const newMsg: BirthdayMessage = {
+        id: newMsgId,
+        coupleId: coupleSpace.id,
+        senderId: userProfile.uid,
+        senderName: userProfile.displayName || 'Partner',
+        recipientId: partnerProfile.uid,
+        message: birthdayDraft.trim(),
+        birthdayDate: todayDateStr,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(msgDocRef, newMsg);
+
+      await sendPartnerNotification(
+        partnerProfile.uid,
+        "Happy Birthday! ❤️🎂",
+        `${userProfile.displayName || 'Your partner'} sent you a heartfelt birthday message!`,
+        'memory'
+      );
+
+      setBirthdaySentSuccess(true);
+      setShowBirthdayConfirm(false);
+      setShowBirthdayComposer(false);
+      setBirthdayDraft('');
+      setCoachNotes('');
+      setTimeout(() => setBirthdaySentSuccess(false), 4000);
+    } catch (err) {
+      console.error("Error sending birthday message:", err);
+    } finally {
+      setIsSendingBirthdayMsg(false);
+    }
+  };
 
   // Real-time listener on couple goals
   useEffect(() => {
@@ -336,6 +441,95 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
           </div>
         </div>
       </div>
+
+      {/* ===================================================================== */}
+      {/* 0A. USER'S BIRTHDAY CELEBRATION CARD */}
+      {/* ===================================================================== */}
+      {isUserBirthday && (
+        <div className="glass-card rounded-3xl p-6 border border-rose-500/30 bg-gradient-to-r from-rose-500/15 via-purple-500/10 to-amber-500/15 shadow-[0_0_30px_rgba(244,63,94,0.18)] relative overflow-hidden animate-fadeIn">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-2xl flex items-center justify-center shrink-0 shadow-inner">
+              🎉
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span>Happy Birthday!</span>
+                <span className="text-xs">🎂✨</span>
+              </h3>
+              <p className="text-xs text-zinc-300 mt-0.5 leading-relaxed">
+                Today is your special day. Wishing you a beautiful year ahead.
+              </p>
+            </div>
+          </div>
+
+          {/* Received Birthday Wishes from Partner */}
+          {receivedBirthdayMessages.filter(m => m.recipientId === userProfile?.uid).length > 0 && (
+            <div className="mt-4 pt-3.5 border-t border-rose-500/20 space-y-2.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-rose-300 flex items-center gap-1">
+                <Heart className="w-3 h-3 fill-rose-400 text-rose-400" />
+                <span>Message from {partnerProfile?.displayName || 'Your Partner'}</span>
+              </span>
+              {receivedBirthdayMessages
+                .filter(m => m.recipientId === userProfile?.uid)
+                .map((msg) => (
+                  <div key={msg.id} className="p-3.5 rounded-2xl bg-black/40 border border-white/10 text-xs text-zinc-200 whitespace-pre-wrap leading-relaxed shadow-sm">
+                    "{msg.message}"
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* 0B. PARTNER'S BIRTHDAY TODAY CARD (Shared) */}
+      {/* ===================================================================== */}
+      {isPartnerBirthday && partnerProfile && (
+        <div className="glass-card rounded-3xl p-6 border border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-purple-500/15 shadow-[0_0_30px_rgba(245,158,11,0.18)] relative overflow-hidden animate-fadeIn">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 text-2xl flex items-center justify-center shrink-0 shadow-inner">
+                🎂
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
+                  Birthday Today
+                </span>
+                <h3 className="text-base font-bold text-white">
+                  It's {partnerProfile.displayName || 'your partner'}'s birthday today!
+                </h3>
+                <p className="text-xs text-zinc-300 mt-0.5 leading-relaxed">
+                  Make their day a little more special.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3.5 border-t border-amber-500/20 flex items-center justify-between">
+            {birthdaySentSuccess ? (
+              <span className="text-xs text-emerald-400 font-medium flex items-center gap-1">
+                <Check className="w-3.5 h-3.5" /> Birthday message sent!
+              </span>
+            ) : (
+              <span className="text-[11px] text-amber-300/80">
+                Send a warm surprise wish
+              </span>
+            )}
+
+            <button
+              onClick={() => {
+                setBirthdayDraft('');
+                setCoachNotes('');
+                setShowBirthdayComposer(true);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-600 hover:opacity-95 text-white font-semibold text-xs shadow-md active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Heart className="w-3.5 h-3.5" />
+              <span>Write a Birthday Message</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 1. CREATE COUPLE SPACE CARD (When user has no couple) */}
       {!userProfile?.coupleId && (
@@ -1084,6 +1278,196 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
         initialMode={goalsModalInitialMode}
         initialTab={goalsModalInitialTab}
       />
+
+      {/* ===================================================================== */}
+      {/* BIRTHDAY MESSAGE COMPOSER MODAL */}
+      {/* ===================================================================== */}
+      {showBirthdayComposer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-sm bg-[#121216] border border-white/10 rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎂</span>
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    Make their birthday special ❤️
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">
+                    For {partnerProfile?.displayName || 'your partner'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowBirthdayComposer(false);
+                  setShowCoachInput(false);
+                }}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Coach Assistance Card */}
+            {showCoachInput ? (
+              <div className="p-3.5 rounded-2xl bg-indigo-950/30 border border-indigo-500/25 space-y-3 animate-fadeIn">
+                <div className="flex items-center gap-2 text-indigo-300">
+                  <Wand2 className="w-4 h-4 text-indigo-400" />
+                  <span className="text-xs font-semibold">TRUSTLY Coach Message Helper</span>
+                </div>
+                <p className="text-[11px] text-zinc-300">
+                  Share anything special you'd like to mention (e.g. your favorite quality or gratitude). Coach will craft warm words without making up facts.
+                </p>
+
+                <textarea
+                  rows={2}
+                  value={coachNotes}
+                  onChange={(e) => setCoachNotes(e.target.value)}
+                  placeholder="e.g. I appreciate how caring they are, and want them to feel loved..."
+                  className="w-full bg-zinc-950/80 border border-white/10 rounded-xl p-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 resize-none"
+                />
+
+                {/* Tone selection */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(['heartfelt', 'playful', 'deeply_romantic', 'grateful'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSelectedTone(t)}
+                      className={`text-[10px] px-2 py-1 rounded-lg border capitalize transition-all cursor-pointer ${
+                        selectedTone === t 
+                          ? 'bg-indigo-500/25 border-indigo-500/50 text-indigo-200' 
+                          : 'bg-white/5 border-white/5 text-zinc-400'
+                      }`}
+                    >
+                      {t.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowCoachInput(false)}
+                    className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isGeneratingCoachMsg}
+                    onClick={handleGenerateCoachBirthdayMessage}
+                    className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isGeneratingCoachMsg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    <span>Generate Words</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCoachInput(false)}
+                  className="flex-1 py-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 text-xs font-medium hover:text-white transition-all cursor-pointer text-center"
+                >
+                  Write Myself
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCoachInput(true)}
+                  className="flex-1 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Get Help from Coach</span>
+                </button>
+              </div>
+            )}
+
+            {/* Message Textarea */}
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                Your Birthday Message
+              </label>
+              <textarea
+                rows={5}
+                required
+                value={birthdayDraft}
+                onChange={(e) => setBirthdayDraft(e.target.value)}
+                placeholder="Write something from the heart..."
+                className="w-full bg-zinc-950/90 border border-white/10 rounded-2xl p-3.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-rose-500 resize-none leading-relaxed"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBirthdayComposer(false);
+                  setShowCoachInput(false);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-zinc-900 text-zinc-400 text-xs font-medium border border-white/5 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!birthdayDraft.trim()}
+                onClick={() => setShowBirthdayConfirm(true)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-indigo-600 text-white text-xs font-semibold shadow-md disabled:opacity-50 flex items-center gap-1.5 cursor-pointer hover:opacity-95"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Send Birthday Message</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* BIRTHDAY MESSAGE CONFIRMATION MODAL */}
+      {/* ===================================================================== */}
+      {showBirthdayConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-sm bg-[#121216] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="text-center space-y-1">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 mx-auto flex items-center justify-center text-xl">
+                💌
+              </div>
+              <h3 className="text-base font-bold text-white pt-1">
+                Send this birthday message to your partner?
+              </h3>
+              <p className="text-xs text-zinc-400">
+                It will be delivered immediately to {partnerProfile?.displayName || 'your partner'}.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-zinc-950/80 border border-white/10 text-xs text-zinc-200 whitespace-pre-wrap leading-relaxed shadow-inner">
+              "{birthdayDraft}"
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isSendingBirthdayMsg}
+                onClick={() => setShowBirthdayConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl bg-zinc-900 text-zinc-300 text-xs font-semibold border border-white/5 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSendingBirthdayMsg}
+                onClick={handleConfirmSendBirthdayMessage}
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-indigo-600 text-white text-xs font-semibold shadow-md flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-95"
+              >
+                {isSendingBirthdayMsg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                <span>Send</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

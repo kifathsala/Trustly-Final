@@ -258,3 +258,55 @@ function generateCuratedConversationStarter(category: string, reflection: string
       };
   }
 }
+
+/**
+ * Birthday Message Coach Assistant:
+ * Creates a heartfelt, genuine birthday message based strictly on what the user provides.
+ * Principle: Never invents private facts or hallucinates details.
+ */
+export async function generateBirthdayMessageCoach(
+  partnerName: string,
+  userNotes: string,
+  tone: 'heartfelt' | 'playful' | 'deeply_romantic' | 'grateful' = 'heartfelt'
+): Promise<string> {
+  const safePartner = partnerName || 'my love';
+  const cleanNotes = userNotes.trim();
+
+  const prompt = `You are TRUSTLY Relationship Coach helping a partner write a personalized, warm, and authentic birthday message for their partner (${safePartner}).
+  
+User's personal notes/feelings to incorporate:
+"${cleanNotes || 'I am so grateful for them and want them to feel truly celebrated and loved today.'}"
+
+Tone style: ${tone}
+
+STRICT GUIDELINES:
+1. Write directly to the partner from the first-person perspective ("Happy birthday...", "I love how...").
+2. Only reference specific details or memories if explicitly mentioned in the user's notes above. DO NOT make up fake trips, pet names, or unmentioned facts.
+3. Keep it sincere, deeply appreciative, and emotionally uplifting (2 to 4 sentences).
+4. Do not wrap in quotes or add conversational preamble. Return only the message text.`;
+
+  if (apiKey || process.env.GEMINI_API_KEY) {
+    try {
+      const client = aiClient || new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || apiKey });
+      const response = await client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION,
+          temperature: 0.7,
+        }
+      });
+      const text = response.text?.trim();
+      if (text) return text;
+    } catch (err) {
+      console.warn("Gemini birthday message generator error, falling back to template:", err);
+    }
+  }
+
+  // Graceful fallback templates if AI is offline
+  if (cleanNotes) {
+    return `Happy Birthday, ${safePartner}! 🎉 ${cleanNotes} I'm so grateful for you every single day and so excited to celebrate you today. Here's to making this your most beautiful year yet. ❤️`;
+  }
+  return `Happy Birthday, ${safePartner}! 🎉 Thank you for bringing so much warmth, joy, and meaning into my life. Today is all about celebrating the wonderful person you are. Wishing you the happiest day and a beautiful year ahead! ❤️`;
+}
+

@@ -17,6 +17,8 @@ export interface UserProfile {
   relationshipStatus?: string;
   relationshipType?: string;
   birthday?: string;
+  dateOfBirth?: string; // YYYY-MM-DD (private by default)
+  shareBirthday?: boolean; // false by default
   timezone?: string;
   coupleId?: string | null;
   onboardingCompleted?: boolean;
@@ -28,6 +30,18 @@ export interface UserProfile {
   subscription?: UserSubscription;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface BirthdayMessage {
+  id?: string;
+  coupleId: string;
+  senderId: string;
+  senderName: string;
+  recipientId: string;
+  message: string;
+  birthdayDate: string; // YYYY-MM-DD or MM-DD
+  createdAt: string;
+  read?: boolean;
 }
 
 export interface CoupleSpace {

@@ -117,29 +117,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    let unSubPartner: (() => void) | null = null;
+
     const coupleDocRef = doc(db, 'couples', userProfile.coupleId);
-    const unSubCouple = onSnapshot(coupleDocRef, async (cSnap) => {
+    const unSubCouple = onSnapshot(coupleDocRef, (cSnap) => {
       if (cSnap.exists()) {
         const cData = { id: cSnap.id, ...cSnap.data() } as CoupleSpace;
         setCoupleSpace(cData);
 
-        // Fetch partner profile if member exists
+        // Listen to partner profile in real-time if member exists
         const partnerId = cData.memberIds?.find(id => id !== currentUser?.uid);
         if (partnerId) {
-          try {
-            const partnerSnap = await getDoc(doc(db, 'users', partnerId));
-            if (partnerSnap.exists()) {
-              setPartnerProfile(partnerSnap.data() as UserProfile);
+          if (unSubPartner) unSubPartner();
+          const partnerDocRef = doc(db, 'users', partnerId);
+          unSubPartner = onSnapshot(partnerDocRef, (pSnap) => {
+            if (pSnap.exists()) {
+              setPartnerProfile(pSnap.data() as UserProfile);
             } else {
               setPartnerProfile(null);
             }
-          } catch (e) {
-            console.warn("Partner fetch notice:", e);
-          }
+          }, (pErr) => {
+            console.warn("Partner snapshot error:", pErr);
+            setPartnerProfile(null);
+          });
         } else {
+          if (unSubPartner) unSubPartner();
           setPartnerProfile(null);
         }
       } else {
+        if (unSubPartner) unSubPartner();
         setCoupleSpace(null);
         setPartnerProfile(null);
       }
@@ -147,7 +153,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn("Couple listener error:", err);
     });
 
-    return () => unSubCouple();
+    return () => {
+      unSubCouple();
+      if (unSubPartner) unSubPartner();
+    };
   }, [userProfile?.coupleId, currentUser?.uid]);
 
   const syncUserProfile = async (user: FirebaseUser) => {

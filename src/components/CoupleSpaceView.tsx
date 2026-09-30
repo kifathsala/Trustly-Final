@@ -1230,140 +1230,206 @@ export const CoupleSpaceView: React.FC = () => {
       {/* ===================================================================== */}
       {/* 4. SECTION: IMPORTANT DATES */}
       {/* ===================================================================== */}
-      {activeTab === 'dates' && (
-        <div className="space-y-4 animate-fadeIn">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-white">Important Dates</h3>
-              <p className="text-xs text-zinc-400">
-                Never lose track of the moments that matter.
-              </p>
-            </div>
-            <button
-              onClick={handleOpenAddDate}
-              className="px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-semibold border border-purple-500/20 flex items-center gap-1 transition-all cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Date</span>
-            </button>
-          </div>
+      {activeTab === 'dates' && (() => {
+        // Construct displayed important dates including dynamic birthdays without DB duplication
+        const allDisplayedDates: (ImportantDate & { isSystemBirthday?: boolean; isPartnerShared?: boolean })[] = [
+          ...importantDates.map(d => ({ ...d, isSystemBirthday: false }))
+        ];
 
-          {importantDates.length === 0 ? (
-            <div className="glass-card rounded-3xl p-8 text-center border border-white/5 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 mx-auto flex items-center justify-center">
-                <CalendarHeart className="w-6 h-6" />
-              </div>
+        const partnerDOB = partnerProfile?.dateOfBirth || partnerProfile?.birthday;
+        if (partnerProfile?.shareBirthday && partnerDOB) {
+          allDisplayedDates.push({
+            id: 'system_partner_birthday',
+            coupleId: coupleSpace?.id || '',
+            createdBy: partnerProfile.uid,
+            creatorName: partnerProfile.displayName || 'Partner',
+            title: `${partnerProfile.displayName || 'Partner'}'s Birthday`,
+            date: partnerDOB,
+            description: 'Shared partner birthday celebration 🎉',
+            repeatYearly: true,
+            category: 'Birthday',
+            createdAt: '',
+            isSystemBirthday: true,
+            isPartnerShared: true
+          });
+        }
+
+        const userDOB = userProfile?.dateOfBirth || userProfile?.birthday;
+        if (userDOB) {
+          allDisplayedDates.push({
+            id: 'system_user_birthday',
+            coupleId: coupleSpace?.id || '',
+            createdBy: userProfile.uid,
+            creatorName: userProfile.displayName || 'You',
+            title: 'My Birthday',
+            date: userDOB,
+            description: userProfile.shareBirthday ? 'Shared with your partner 🎂' : 'Private birthday (visible only to you) 🔒',
+            repeatYearly: true,
+            category: 'Birthday',
+            createdAt: '',
+            isSystemBirthday: true,
+            isPartnerShared: false
+          });
+        }
+
+        // Sort upcoming dates closest to today first
+        allDisplayedDates.sort((a, b) => {
+          const nextA = calculateDateCountdown(a.date, a.repeatYearly).nextOccurrenceDate.getTime();
+          const nextB = calculateDateCountdown(b.date, b.repeatYearly).nextOccurrenceDate.getTime();
+          return nextA - nextB;
+        });
+
+        return (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-semibold text-zinc-200">
-                  No important dates added.
-                </h4>
-                <p className="text-xs text-zinc-400 max-w-xs mx-auto mt-1 leading-relaxed">
-                  Add anniversaries, birthdays, or special moments.
+                <h3 className="text-base font-bold text-white">Important Dates</h3>
+                <p className="text-xs text-zinc-400">
+                  Never lose track of the moments that matter.
                 </p>
               </div>
               <button
                 onClick={handleOpenAddDate}
-                className="mt-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-rose-600 text-white font-semibold text-xs shadow-md shadow-purple-600/20 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-semibold border border-purple-500/20 flex items-center gap-1 transition-all cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>Add an Important Date</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Date</span>
               </button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {importantDates.map((d) => {
-                const countdown = calculateDateCountdown(d.date, d.repeatYearly);
-                const categoryIcon = getDateCategoryIcon(d.category);
 
-                return (
-                  <div 
-                    key={d.id} 
-                    className="glass-card rounded-2xl p-4 border border-white/10 space-y-2.5 hover:border-white/20 transition-all group"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0 ${
-                          countdown.isToday 
-                            ? 'bg-rose-500/20 border border-rose-500/40 animate-pulse' 
-                            : 'bg-white/5 border border-white/10'
-                        }`}>
-                          {categoryIcon}
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-white">
-                            {d.title}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
-                            <span className="font-semibold text-zinc-200">{countdown.formattedDate}</span>
-                            {d.repeatYearly && (
-                              <span className="flex items-center gap-1 text-[10px] text-purple-300 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">
-                                <Repeat className="w-2.5 h-2.5" />
-                                <span>Yearly</span>
-                              </span>
-                            )}
+            {allDisplayedDates.length === 0 ? (
+              <div className="glass-card rounded-3xl p-8 text-center border border-white/5 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 mx-auto flex items-center justify-center">
+                  <CalendarHeart className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-200">
+                    No important dates added.
+                  </h4>
+                  <p className="text-xs text-zinc-400 max-w-xs mx-auto mt-1 leading-relaxed">
+                    Add anniversaries, birthdays, or special moments.
+                  </p>
+                </div>
+                <button
+                  onClick={handleOpenAddDate}
+                  className="mt-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-rose-600 text-white font-semibold text-xs shadow-md shadow-purple-600/20 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add an Important Date</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {allDisplayedDates.map((d) => {
+                  const countdown = calculateDateCountdown(d.date, d.repeatYearly);
+                  const categoryIcon = getDateCategoryIcon(d.category);
+
+                  return (
+                    <div 
+                      key={d.id} 
+                      className="glass-card rounded-2xl p-4 border border-white/10 space-y-2.5 hover:border-white/20 transition-all group"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0 ${
+                            countdown.isToday 
+                              ? 'bg-rose-500/20 border border-rose-500/40 animate-pulse' 
+                              : 'bg-white/5 border border-white/10'
+                          }`}>
+                            {categoryIcon}
                           </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-bold text-white">
+                                {d.title}
+                              </h4>
+                              {d.isSystemBirthday && (
+                                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${
+                                  d.isPartnerShared
+                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                }`}>
+                                  {d.isPartnerShared ? 'Shared Birthday' : 'Profile DOB'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
+                              <span className="font-semibold text-zinc-200">{countdown.formattedDate}</span>
+                              {d.repeatYearly && (
+                                <span className="flex items-center gap-1 text-[10px] text-purple-300 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">
+                                  <Repeat className="w-2.5 h-2.5" />
+                                  <span>Yearly</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Approaching Indicator */}
+                        <div className="text-right shrink-0">
+                          {countdown.isToday ? (
+                            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-rose-500 text-white shadow-sm inline-block">
+                              Today! 🎉
+                            </span>
+                          ) : countdown.isUpcoming ? (
+                            <div className="flex flex-col items-end">
+                              <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
+                                Coming up
+                              </span>
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 mt-0.5 inline-block">
+                                {countdown.label}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 inline-block">
+                              {countdown.label}
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      {/* Approaching Indicator */}
-                      <div className="text-right shrink-0">
-                        {countdown.isToday ? (
-                          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-rose-500 text-white shadow-sm inline-block">
-                            Today! 🎉
-                          </span>
-                        ) : countdown.isUpcoming ? (
-                          <div className="flex flex-col items-end">
-                            <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
-                              Coming up
-                            </span>
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 mt-0.5 inline-block">
-                              {countdown.label}
-                            </span>
+                      {d.description && (
+                        <p className="text-xs text-zinc-300 leading-relaxed bg-black/20 p-2.5 rounded-xl border border-white/5">
+                          {d.description}
+                        </p>
+                      )}
+
+                      <div className="pt-2 flex items-center justify-between text-[10px] text-zinc-400 border-t border-white/5">
+                        <span>
+                          {d.isSystemBirthday 
+                            ? (d.isPartnerShared ? `Shared by ${d.creatorName}` : 'Configured in Profile')
+                            : `Added by ${d.creatorName || (d.createdBy === userProfile?.uid ? 'You' : (partnerProfile?.displayName || 'Partner'))}`}
+                        </span>
+
+                        {!d.isSystemBirthday && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditDate(d)}
+                              className="p-1 rounded text-zinc-400 hover:text-white transition-colors"
+                              title="Edit date"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDateToDelete(d)}
+                              className="p-1 rounded text-zinc-400 hover:text-rose-400 transition-colors"
+                              title="Delete date"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        ) : (
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 inline-block">
-                            {countdown.label}
-                          </span>
                         )}
                       </div>
                     </div>
-
-                    {d.description && (
-                      <p className="text-xs text-zinc-300 leading-relaxed bg-black/20 p-2.5 rounded-xl border border-white/5">
-                        {d.description}
-                      </p>
-                    )}
-
-                    <div className="pt-2 flex items-center justify-between text-[10px] text-zinc-400 border-t border-white/5">
-                      <span>
-                        Added by {d.creatorName || (d.createdBy === userProfile?.uid ? 'You' : (partnerProfile?.displayName || 'Partner'))}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditDate(d)}
-                          className="p-1 rounded text-zinc-400 hover:text-white transition-colors"
-                          title="Edit date"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDateToDelete(d)}
-                          className="p-1 rounded text-zinc-400 hover:text-rose-400 transition-colors"
-                          title="Delete date"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ===================================================================== */}
       {/* 5. SECTION: SHARED NOTES */}
