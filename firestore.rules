@@ -1,0 +1,222 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isMasterAdmin() {
+      return isSignedIn() && 
+        ('email' in request.auth.token) && 
+        (request.auth.token.email == "mdumarkiffayaumarkiffaya@gmail.com" || request.auth.token.email.lower() == "mdumarkiffayaumarkiffaya@gmail.com");
+    }
+
+    function isCoupleMember(coupleId) {
+      return isSignedIn() && (
+        coupleId != null && (
+          request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberIds ||
+          isMasterAdmin()
+        )
+      );
+    }
+
+    // Admins collection
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isMasterAdmin() || isOwner(adminId);
+    }
+
+    // Users (Private profile and private AI conversations)
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isMasterAdmin();
+
+      // AI Coach conversations (STRICTLY OWNER-ONLY)
+      match /aiConversations/{conversationId} {
+        allow read, write: if isOwner(userId) || isMasterAdmin();
+        match /messages/{messageId} {
+          allow read, write: if isOwner(userId) || isMasterAdmin();
+        }
+      }
+    }
+
+    // Couples Space
+    match /couples/{coupleId} {
+      // Allowed to read if member, or waiting for connection (for invite code validation), or master admin
+      allow read: if isSignedIn() && (
+        resource.data.status == 'waiting' || 
+        request.auth.uid in resource.data.memberIds || 
+        isMasterAdmin()
+      );
+      // Allowed to create if signed in and authenticated user is creator & in memberIds
+      allow create: if isSignedIn() && 
+        (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid) &&
+        request.auth.uid in request.resource.data.memberIds;
+      // Allowed to update if existing member, or if joining a waiting couple as the 2nd member
+      allow update: if isSignedIn() && (
+        request.auth.uid in resource.data.memberIds ||
+        (resource.data.status == 'waiting' && request.auth.uid in request.resource.data.memberIds && request.resource.data.memberIds.size() == 2) ||
+        isMasterAdmin()
+      );
+      allow delete: if isMasterAdmin() || (isSignedIn() && (resource.data.creatorId == request.auth.uid || resource.data.createdBy == request.auth.uid));
+
+      // Subcollections inside couples/{coupleId}
+      match /memories/{memoryId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
+        allow update, delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+      }
+
+      match /goals/{goalId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
+        allow update: if isCoupleMember(coupleId);
+        allow delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+      }
+
+      match /importantDates/{dateId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
+        allow update: if isCoupleMember(coupleId);
+        allow delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+      }
+
+      match /sharedNotes/{noteId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
+        allow update: if isCoupleMember(coupleId);
+        allow delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+      }
+
+      match /boundaries/{boundaryId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
+        allow update: if isCoupleMember(coupleId);
+        allow delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid || isMasterAdmin());
+      }
+
+      match /checkIns/{checkInId} {
+        allow read: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || resource.data.isShared == true || resource.data.shareSummary == true || isMasterAdmin());
+        allow create: if isCoupleMember(coupleId) && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || isMasterAdmin());
+      }
+    }
+
+    // Daily Check-ins (Owner or verified couple partner when isShared is true)
+    match /checkIns/{checkInId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        (resource.data.isShared == true && resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || 
+        isMasterAdmin()
+      );
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isMasterAdmin());
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isMasterAdmin());
+    }
+
+    // Trust Checks (Owner or verified couple partner when isSharedWithPartner is true)
+    match /trustChecks/{trustCheckId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        (resource.data.isSharedWithPartner == true && resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || 
+        isMasterAdmin()
+      );
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isMasterAdmin());
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isMasterAdmin());
+    }
+
+    // Private Journal Entries (STRICTLY OWNER-ONLY)
+    match /journalEntries/{journalId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isMasterAdmin());
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isMasterAdmin());
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isMasterAdmin());
+    }
+
+    // Boundaries (Verified couple members only)
+    match /boundaries/{boundaryId} {
+      allow read: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow create: if isSignedIn() && (
+        (request.resource.data.coupleId != null && isCoupleMember(request.resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow update: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid)) || isMasterAdmin()
+      );
+    }
+
+    // Shared Memories (Verified couple members only)
+    match /sharedMemories/{memoryId} {
+      allow read: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow create: if isSignedIn() && (
+        (request.resource.data.coupleId != null && isCoupleMember(request.resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow update, delete: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || isMasterAdmin()
+      );
+    }
+
+    // Couple Goals (Verified couple members only)
+    match /coupleGoals/{goalId} {
+      allow read, update: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow create: if isSignedIn() && (
+        (request.resource.data.coupleId != null && isCoupleMember(request.resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid)) || isMasterAdmin()
+      );
+    }
+
+    // Important Dates (Verified couple members only)
+    match /importantDates/{dateId} {
+      allow read, update: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow create: if isSignedIn() && (
+        (request.resource.data.coupleId != null && isCoupleMember(request.resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid)) || isMasterAdmin()
+      );
+    }
+
+    // Shared Notes (Verified couple members only)
+    match /sharedNotes/{noteId} {
+      allow read, update: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow create: if isSignedIn() && (
+        (request.resource.data.coupleId != null && isCoupleMember(request.resource.data.coupleId)) || isMasterAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        (resource.data.coupleId != null && isCoupleMember(resource.data.coupleId) && (resource.data.createdBy == request.auth.uid || resource.data.creatorId == request.auth.uid)) || isMasterAdmin()
+      );
+    }
+
+    // User Notifications (Owner only read/update/delete)
+    match /notifications/{userId} {
+      allow read, write: if isOwner(userId) || isMasterAdmin();
+      match /{allSubpaths=**} {
+        allow read: if isOwner(userId) || isMasterAdmin();
+        allow create: if isSignedIn();
+        allow update, delete: if isOwner(userId) || isMasterAdmin();
+      }
+    }
+
+    // Catch-all: master admin only
+    match /{document=**} {
+      allow read, write: if isMasterAdmin();
+    }
+  }
+}

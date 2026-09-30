@@ -1,0 +1,8 @@
+{
+  "name": "TRUSTLY - Relationship Clarity & Privacy-First Couple Space",
+  "description": "A privacy-first relationship app that helps couples build trust, communicate clearly, and connect deeply with voluntary check-ins and an empathetic AI Coach.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

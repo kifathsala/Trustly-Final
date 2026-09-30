@@ -1,0 +1,197 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with privacy-respecting account data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "relationshipStatus": { "type": "string" },
+        "relationshipType": { "type": "string" },
+        "coupleId": { "type": "string" },
+        "onboardingCompleted": { "type": "boolean" },
+        "onboardingGoals": { "type": "array" },
+        "focusAreas": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "displayName"]
+    },
+    "Couple": {
+      "title": "Couple",
+      "description": "Couple shared space and pairing metadata",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "inviteCode": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "memberIds": { "type": "array" },
+        "status": { "type": "string" },
+        "relationshipType": { "type": "string" },
+        "anniversary": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["inviteCode", "creatorId", "memberIds", "status"]
+    },
+    "CheckIn": {
+      "title": "CheckIn",
+      "description": "Daily relationship pulse check-in",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "coupleId": { "type": "string" },
+        "connectionScore": { "type": "number" },
+        "betterResponse": { "type": "string" },
+        "isShared": { "type": "boolean" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "connectionScore", "date"]
+    },
+    "TrustCheck": {
+      "title": "TrustCheck",
+      "description": "Voluntary trust check answers",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "coupleId": { "type": "string" },
+        "answers": { "type": "object" },
+        "isSharedWithPartner": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "answers"]
+    },
+    "Boundary": {
+      "title": "Boundary",
+      "description": "Healthy boundary proposed and negotiated between partners",
+      "type": "object",
+      "properties": {
+        "coupleId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "discussing", "agreed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["coupleId", "creatorId", "title", "description", "status"]
+    },
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "Private emotional clarity journal with voluntary partner sharing",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "coupleId": { "type": "string" },
+        "feeling": { "type": "string" },
+        "bothering": { "type": "string" },
+        "communicate": { "type": "string" },
+        "isShared": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "SharedMemory": {
+      "title": "SharedMemory",
+      "description": "Shared couple memory note or milestone",
+      "type": "object",
+      "properties": {
+        "coupleId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "description": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["coupleId", "creatorId", "title"]
+    },
+    "CoupleGoal": {
+      "title": "CoupleGoal",
+      "description": "Aspirational goal worked on together",
+      "type": "object",
+      "properties": {
+        "coupleId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "title": { "type": "string" },
+        "targetDate": { "type": "string" },
+        "category": { "type": "string" },
+        "isCompleted": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["coupleId", "creatorId", "title"]
+    },
+    "ImportantDate": {
+      "title": "ImportantDate",
+      "description": "Anniversary, first meeting, birthdays",
+      "type": "object",
+      "properties": {
+        "coupleId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "reminderDays": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["coupleId", "creatorId", "title", "date"]
+    },
+    "SharedNote": {
+      "title": "SharedNote",
+      "description": "Couple shared notes and thoughts",
+      "type": "object",
+      "properties": {
+        "coupleId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["coupleId", "creatorId", "content"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user profile documents"
+    },
+    "/couples/{coupleId}": {
+      "schema": "Couple",
+      "description": "Shared couple pairing spaces"
+    },
+    "/checkIns/{checkInId}": {
+      "schema": "CheckIn",
+      "description": "Daily relationship check-ins"
+    },
+    "/trustChecks/{trustCheckId}": {
+      "schema": "TrustCheck",
+      "description": "Private or shared trust check assessments"
+    },
+    "/boundaries/{boundaryId}": {
+      "schema": "Boundary",
+      "description": "Couple communication and relationship boundaries"
+    },
+    "/journalEntries/{journalId}": {
+      "schema": "JournalEntry",
+      "description": "Private self-reflection journal entries"
+    },
+    "/sharedMemories/{memoryId}": {
+      "schema": "SharedMemory",
+      "description": "Couple memories and milestones"
+    },
+    "/coupleGoals/{goalId}": {
+      "schema": "CoupleGoal",
+      "description": "Shared couple dreams and habits"
+    },
+    "/importantDates/{dateId}": {
+      "schema": "ImportantDate",
+      "description": "Couple milestones and anniversaries"
+    },
+    "/sharedNotes/{noteId}": {
+      "schema": "SharedNote",
+      "description": "Shared notes between partners"
+    }
+  }
+}
