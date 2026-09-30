@@ -18,6 +18,7 @@ import { CoupleSpaceView } from './components/CoupleSpaceView';
 import { BoundariesView } from './components/BoundariesView';
 import { PrivateJournalView } from './components/PrivateJournalView';
 import { PrivacyCenterView } from './components/PrivacyCenterView';
+import { MyConnectionsView } from './components/MyConnectionsView';
 import { ProfileView } from './components/ProfileView';
 import { SubscriptionSettingsView } from './components/SubscriptionSettingsView';
 import { PricingModal } from './components/PricingModal';
@@ -29,7 +30,7 @@ function MainApp() {
   const { showPricingModal, closePricingModal } = useSubscription();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState<'home' | 'trust' | 'coach' | 'couple' | 'profile' | 'journal' | 'boundaries' | 'privacy' | 'subscription'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'connections' | 'trust' | 'coach' | 'couple' | 'profile' | 'journal' | 'boundaries' | 'privacy' | 'subscription'>('home');
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup' | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showPairingFlow, setShowPairingFlow] = useState(false);
@@ -156,6 +157,16 @@ function MainApp() {
               setShowPairingFlow(true);
             }}
             onOpenCoachWithTopic={navigateToCoachWithTopic}
+          />
+        )}
+
+        {activeTab === 'connections' && (
+          <MyConnectionsView 
+            onOpenSpace={() => setActiveTab('couple')}
+            onOpenPairing={(mode = 'options') => {
+              setPairingInitialMode(mode);
+              setShowPairingFlow(true);
+            }}
           />
         )}
 

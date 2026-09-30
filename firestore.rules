@@ -11,9 +11,7 @@ service cloud.firestore {
     }
 
     function isMasterAdmin() {
-      return isSignedIn() && 
-        ('email' in request.auth.token) && 
-        (request.auth.token.email == "mdumarkiffayaumarkiffaya@gmail.com" || request.auth.token.email.lower() == "mdumarkiffayaumarkiffaya@gmail.com");
+      return isSignedIn() && request.auth.token.email == "mdumarkiffayaumarkiffaya@gmail.com";
     }
 
     function isCoupleMember(coupleId) {
@@ -34,7 +32,7 @@ service cloud.firestore {
     // Users (Private profile and private AI conversations)
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isMasterAdmin();
+      allow create, update, delete: if isOwner(userId) || isMasterAdmin();
 
       // AI Coach conversations (STRICTLY OWNER-ONLY)
       match /aiConversations/{conversationId} {

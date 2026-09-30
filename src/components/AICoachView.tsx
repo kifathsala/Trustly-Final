@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { askTrustlyCoach } from '../lib/gemini';
 import { useSubscription } from '../context/SubscriptionContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Sparkles, 
   Send, 
@@ -19,7 +20,11 @@ interface AICoachViewProps {
 }
 
 export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) => {
-  const { isPlus, openUpgradeModal, checkFeatureAccess, openPricingModal } = useSubscription();
+  const { isPlus, openUpgradeModal } = useSubscription();
+  const { userProfile, coupleSpace, partnerProfile } = useAuth();
+
+  const activeConnectionType = coupleSpace?.connectionType || userProfile?.connectionType || 'partner';
+  const partnerName = partnerProfile?.displayName || undefined;
 
   const [inputText, setInputText] = useState(initialPrompt);
   const [activeMode, setActiveMode] = useState<'conversation_starter' | 'rewrite_message' | 'understand_situation' | 'prepare_difficult' | 'resolve_argument'>('conversation_starter');
@@ -72,7 +77,9 @@ export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) 
     try {
       const response = await askTrustlyCoach({
         userQuery: textToSend.trim(),
-        contextMode: currentMode
+        contextMode: currentMode,
+        connectionType: activeConnectionType,
+        personName: partnerName
       });
 
       setMessages([

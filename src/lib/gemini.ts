@@ -15,26 +15,27 @@ try {
 export interface CoachPromptOptions {
   userQuery: string;
   contextMode: 'conversation_starter' | 'rewrite_message' | 'understand_situation' | 'prepare_difficult' | 'resolve_argument' | 'general';
+  connectionType?: string;
+  personName?: string;
 }
 
 const SYSTEM_INSTRUCTION = `
 You are TRUSTLY Coach, a compassionate, emotionally intelligent, and objective relationship communication advisor.
 
 STRICT PRINCIPLES:
-1. Relationships deserve clarity, kindness, and emotional safety.
-2. DISTINGUISH FEELINGS FROM FACTS: Acknowledge that feelings of anxiety, distance, or worry are valid, but they do not prove wrongdoing, disloyalty, or infidelity.
-3. NEVER DECLARE GUILT OR ACCUSE: Never accuse a partner of cheating, lying, or bad faith based on guesses or feelings.
-4. If a user asks "Is my partner cheating?" or mentions suspicion:
-   State clearly: "TRUSTLY can't determine whether someone is cheating. We can help you separate what you know from what you're worried about and prepare a respectful conversation."
-5. AVOID PSYCHOLOGICAL DIAGNOSES: Never label a partner as "narcissist," "gaslighter," or "sociopath."
-6. NEVER ENCOURAGE SNOOPING OR MANIPULATION: Explicitly discourage snooping on phones, hacking accounts, checking private messages, or tracking location without consent.
+1. Relationships deserve clarity, kindness, and emotional safety across all connections (partners, family, parents, best friends, friends, etc.).
+2. Do NOT assume every relationship is romantic or marital unless explicitly stated by the user. Adapt your language appropriately for parents, friends, family members, or partners.
+3. DISTINGUISH FEELINGS FROM FACTS: Acknowledge that feelings of anxiety, distance, or worry are valid, but they do not prove wrongdoing or disloyalty.
+4. NEVER DECLARE GUILT OR ACCUSE: Never accuse a connection of bad faith based on guesses or feelings.
+5. AVOID PSYCHOLOGICAL DIAGNOSES: Never label someone as "narcissist," "gaslighter," or "sociopath."
+6. NEVER ENCOURAGE SNOOPING OR MANIPULATION: Explicitly discourage snooping, checking private messages, or tracking location without consent.
 7. ENCOURAGE RESPECTFUL "I" STATEMENTS: Frame difficult emotions using "I feel...", "I've noticed...", "I'd love to understand..." rather than accusatory "You always..." or "You did...".
 8. SAFETY CLAUSE: If domestic violence, physical intimidation, or dangerous abuse is mentioned, gently and warmly advise prioritizing immediate physical and emotional safety, offering professional helpline resources.
 9. Keep responses structured, warm, grounded, and concise (under 250 words) with actionable phrase suggestions.
 `;
 
 export async function askTrustlyCoach(options: CoachPromptOptions): Promise<string> {
-  const { userQuery, contextMode } = options;
+  const { userQuery, contextMode, connectionType = 'partner', personName } = options;
 
   // Check if user is asking about cheating / suspicion
   const lowerQuery = userQuery.toLowerCase();
@@ -45,11 +46,17 @@ export async function askTrustlyCoach(options: CoachPromptOptions): Promise<stri
     return `TRUSTLY can't determine whether someone is cheating. We can help you separate what you know from what you're worried about and prepare a respectful conversation.\n\nWhen we feel insecure or sense a change in patterns, our minds naturally imagine the worst scenarios to protect ourselves. \n\nInstead of making an accusation, consider opening with:\n"I’ve noticed some distance between us lately, and I’m feeling unsettled. Could we set aside quiet time tonight to talk about how things are feeling between us?"`;
   }
 
+  const targetNoun = personName ? personName : connectionType === 'parent' ? 'parent' : connectionType === 'friend' ? 'friend' : connectionType === 'best_friend' ? 'best friend' : connectionType === 'family' ? 'family member' : connectionType === 'crush' ? 'crush' : 'partner';
+
   // Attempt to call Gemini API if key is available
   if (apiKey || process.env.GEMINI_API_KEY) {
     try {
       const client = aiClient || new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || apiKey });
-      const prompt = `Context Action: ${contextMode}\nUser asks: "${userQuery}"\n\nPlease provide supportive, non-accusatory advice with example respectful words they can say.`;
+      const prompt = `Relationship Context: ${connectionType} (${targetNoun})
+Context Action: ${contextMode}
+User asks: "${userQuery}"
+
+Please provide supportive, empathetic advice tailored specifically for a relationship with a ${targetNoun}. Offer respectful, non-accusatory wordings they can use.`;
       
       const response = await client.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -69,29 +76,29 @@ export async function askTrustlyCoach(options: CoachPromptOptions): Promise<stri
   }
 
   // Intelligent empathetic fallback matching the startup design
-  return generateCuratedCoachResponse(userQuery, contextMode);
+  return generateCuratedCoachResponse(userQuery, contextMode, connectionType, targetNoun);
 }
 
-function generateCuratedCoachResponse(query: string, mode: CoachPromptOptions['contextMode']): string {
+function generateCuratedCoachResponse(query: string, mode: CoachPromptOptions['contextMode'], connectionType: string, targetNoun: string): string {
   const q = query.toLowerCase();
 
   if (mode === 'rewrite_message') {
-    return `Here is a respectful rewrite focusing on clarity rather than blame:\n\nOriginal tone often sounds accusatory when we are hurt. Try this instead:\n\n"Hey, I value our connection and have felt a little disconnected over the past couple of days. When you have a moment, I'd really love to hear how you're doing and share what's on my mind."\n\n💡 Why this works: It opens the door without triggering defensiveness.`;
+    return `Here is a respectful rewrite for your ${targetNoun} focusing on clarity rather than defensiveness:\n\n"Hey, I value our relationship and felt a little disconnected recently. When you have a quiet moment, I'd really love to hear how you're doing and share what's been on my mind."\n\n💡 Why this works: It opens the door for genuine check-in without placing blame.`;
   }
 
   if (mode === 'resolve_argument' || q.includes('argument') || q.includes('fight')) {
-    return `When resolving a heated disagreement, the goal is reconnection, not winning:\n\n1. Take a brief pause: "I want to solve this with you, but I feel overwhelmed right now. Can we take 20 minutes to breathe and return to this?"\n2. Reaffirm the bond: "You matter more to me than being right about this."\n3. Clarify their view: "What was the hardest part of that for you?"`;
+    return `When resolving a disagreement with your ${targetNoun}, the goal is mutual understanding:\n\n1. Take a brief pause: "I want to solve this together, but I'm feeling overwhelmed right now. Can we take a short break and talk through this calmly?"\n2. Reaffirm the relationship: "Our relationship matters more to me than winning an argument."\n3. Seek their perspective: "I want to understand your side better—what was the hardest part of that for you?"`;
   }
 
   if (mode === 'prepare_difficult' || q.includes('difficult') || q.includes('boundaries')) {
-    return `To prepare for a vulnerable conversation:\n\n• Choose a neutral moment when neither of you is hungry, tired, or rushed.\n• State your positive intention first: "I'm bringing this up because our relationship is really important to me and I want us to feel safe together."\n• Stick to observable experiences: "When plans change without notice, I feel anxious about our time together."`;
+    return `To prepare for a vulnerable conversation with your ${targetNoun}:\n\n• Choose a relaxed moment when neither of you is rushed or stressed.\n• State your positive intention first: "I'm bringing this up because our relationship is really important to me and I want us to communicate openly."\n• Use "I" statements: "When plans change without notice, I feel anxious about our time together."`;
   }
 
   if (q.includes('avoid') || q.includes('distant') || q.includes('ignoring')) {
-    return `Instead of starting with an accusation, you could say:\n\n"I’ve felt a little distant from you recently, and I’d like to understand how you're feeling. Are you feeling overwhelmed by work or life, or is there something between us we should talk through?"\n\nNotice that this separates your observation of distance from assuming bad intent.`;
+    return `Instead of assuming bad intent from your ${targetNoun}, try asking:\n\n"I’ve felt a little distant from you recently, and I’d like to understand how you're doing. Have you been feeling overwhelmed lately, or is there something on your mind we should talk through?"\n\nThis gives your ${targetNoun} space to open up.`;
   }
 
-  return `Relationships grow when we choose curiosity over assumption.\n\nA helpful way to express this is:\n"I’ve been reflecting on our dynamic lately and wanted to check in. I want to make sure you feel heard and supported, and also share what I've been feeling."\n\nFocus on how you want to grow together rather than past shortcomings.`;
+  return `Relationships thrive when we choose curiosity over assumption.\n\nA warm way to connect with your ${targetNoun} is:\n"I’ve been reflecting on our relationship dynamic lately and wanted to check in. I want to make sure you feel supported, and also share what I've been feeling."`;
 }
 
 export interface ConversationStarterResult {

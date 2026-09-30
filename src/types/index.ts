@@ -1,3 +1,29 @@
+export type ConnectionType = 
+  | 'partner'
+  | 'parent'
+  | 'family'
+  | 'best_friend'
+  | 'friend'
+  | 'crush'
+  | 'other';
+
+export interface ConnectionTypeOption {
+  type: ConnectionType;
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+export const CONNECTION_TYPE_OPTIONS: ConnectionTypeOption[] = [
+  { type: 'partner', label: 'Partner / Lover', emoji: '❤️', description: 'Romantic partner, spouse, or lover' },
+  { type: 'parent', label: 'Parent', emoji: '👨‍👩‍👦', description: 'Mom, dad, or parental figure' },
+  { type: 'family', label: 'Family Member', emoji: '👨‍👩‍👧', description: 'Sibling, relative, or child' },
+  { type: 'best_friend', label: 'Best Friend', emoji: '🧑‍🤝‍🧑', description: 'Closest friend and confidant' },
+  { type: 'friend', label: 'Friend', emoji: '🤝', description: 'Good friend or peer' },
+  { type: 'crush', label: 'Crush', emoji: '💭', description: 'Someone you are interested in' },
+  { type: 'other', label: 'Other', emoji: '👥', description: 'Any meaningful relationship' },
+];
+
 export interface UserSubscription {
   plan: 'free' | 'plus';
   status: 'inactive' | 'active' | 'cancelled' | 'past_due';
@@ -16,6 +42,7 @@ export interface UserProfile {
   photoURL?: string;
   relationshipStatus?: string;
   relationshipType?: string;
+  connectionType?: ConnectionType | string;
   birthday?: string;
   dateOfBirth?: string; // YYYY-MM-DD (private by default)
   shareBirthday?: boolean; // false by default
@@ -54,6 +81,7 @@ export interface CoupleSpace {
   memberIds: string[];
   status: 'waiting' | 'connected' | 'active' | 'disconnected';
   relationshipType?: string;
+  connectionType?: ConnectionType | string;
   anniversary?: string;
   createdAt: string;
   updatedAt?: string;

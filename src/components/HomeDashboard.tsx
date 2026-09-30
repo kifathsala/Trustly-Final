@@ -4,7 +4,6 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { 
   collection, 
   doc, 
-  setDoc, 
   getDoc,
   getDocs, 
   query, 
@@ -14,37 +13,45 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { DailyCheckIn, UserCheckIn, SharedCheckInSummary, SharedConversationStarter, CoupleGoal, BirthdayMessage } from '../types';
+import { 
+  UserCheckIn, 
+  SharedCheckInSummary, 
+  SharedConversationStarter, 
+  CoupleGoal, 
+  SharedMemory,
+  ImportantDate,
+  BirthdayMessage,
+  CoupleSpace,
+  UserProfile,
+  CONNECTION_TYPE_OPTIONS 
+} from '../types';
 import { DailyCheckInModal } from './DailyCheckInModal';
 import { ConversationStartersModal } from './ConversationStartersModal';
 import { CoupleGoalsModal } from './CoupleGoalsModal';
-import { isBirthdayToday, formatBirthdayDisplay } from '../lib/birthday';
+import { isBirthdayToday } from '../lib/birthday';
 import { generateBirthdayMessageCoach } from '../lib/gemini';
-import { sendPartnerNotification } from '../lib/notifications';
 import { 
   Heart, 
   Sparkles, 
   ShieldCheck, 
   Activity, 
   CheckCircle2, 
-  Send, 
   Lock, 
   ArrowRight, 
   MessageSquare, 
   Users, 
-  Compass, 
   Bell, 
   X,
-  Crown,
-  History,
-  Share2,
-  Trophy,
   Target,
   Plus,
-  Gift,
-  Wand2,
   Loader2,
-  Check
+  Check,
+  ChevronRight,
+  Clock,
+  Calendar,
+  Camera,
+  Layers,
+  Zap
 } from 'lucide-react';
 
 interface HomeDashboardProps {
@@ -61,83 +68,224 @@ interface AppNotification {
   read?: boolean;
 }
 
-export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onOpenPairing, onOpenCoachWithTopic }) => {
-  const { currentUser, userProfile, partnerProfile, coupleSpace } = useAuth();
-  const { isPlus, openPricingModal } = useSubscription();
-  
+interface UserConnectionData {
+  space: CoupleSpace;
+  partner: UserProfile | null;
+}
+
+interface ActivityItem {
+  id: string;
+  type: 'memory' | 'goal' | 'date' | 'checkin' | 'conversation';
+  title: string;
+  subtitle: string;
+  dateStr: string;
+  icon: string;
+}
+
+export const HomeDashboard: React.FC<HomeDashboardProps> = ({ 
+  onNavigateTab, 
+  onOpenPairing, 
+  onOpenCoachWithTopic 
+}) => {
+  const { currentUser, userProfile, partnerProfile, coupleSpace, setCoupleSpace } = useAuth();
+  const { isPlus } = useSubscription();
+
+  // Loading states
+  const [loadingData, setLoadingData] = useState<boolean>(true);
+  const [userConnections, setUserConnections] = useState<UserConnectionData[]>([]);
+
+  // Check-in states
   const [todayCheckedIn, setTodayCheckedIn] = useState<boolean>(false);
   const [todayUserCheckIn, setTodayUserCheckIn] = useState<UserCheckIn | null>(null);
   const [partnerSharedSummary, setPartnerSharedSummary] = useState<SharedCheckInSummary | null>(null);
-  const [loadingData, setLoadingData] = useState<boolean>(true);
-  const [recentCheckIns, setRecentCheckIns] = useState<UserCheckIn[]>([]);
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
   const [checkInModalInitialTab, setCheckInModalInitialTab] = useState<'checkin' | 'history'>('checkin');
 
-  // Things Worth Talking About state
+  // Conversation Starters state
   const [showConversationModal, setShowConversationModal] = useState<boolean>(false);
-  const [conversationModalInitialTab, setConversationModalInitialTab] = useState<'create' | 'history'>('create');
-  const [savedStartersCount, setSavedStartersCount] = useState<number>(0);
   const [partnerSharedConversation, setPartnerSharedConversation] = useState<SharedConversationStarter | null>(null);
 
-  // Couple Goals state
+  // Goals state
   const [showGoalsModal, setShowGoalsModal] = useState<boolean>(false);
   const [goalsModalInitialMode, setGoalsModalInitialMode] = useState<'list' | 'create'>('list');
-  const [goalsModalInitialTab, setGoalsModalInitialTab] = useState<'active' | 'milestones'>('active');
-  const [coupleGoals, setCoupleGoals] = useState<CoupleGoal[]>([]);
 
-  // Real notifications state
+  // Notifications state
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
-  const [loadingNotifications, setLoadingNotifications] = useState<boolean>(false);
 
-  // Birthday feature states
+  // Birthday state
   const isUserBirthday = isBirthdayToday(userProfile?.dateOfBirth || userProfile?.birthday);
   const isPartnerBirthday = Boolean(
     partnerProfile?.shareBirthday && 
     isBirthdayToday(partnerProfile?.dateOfBirth || partnerProfile?.birthday)
   );
-
   const [receivedBirthdayMessages, setReceivedBirthdayMessages] = useState<BirthdayMessage[]>([]);
   const [showBirthdayComposer, setShowBirthdayComposer] = useState<boolean>(false);
-  const [showBirthdayConfirm, setShowBirthdayConfirm] = useState<boolean>(false);
   const [birthdayDraft, setBirthdayDraft] = useState<string>('');
   const [coachNotes, setCoachNotes] = useState<string>('');
   const [selectedTone, setSelectedTone] = useState<'heartfelt' | 'playful' | 'deeply_romantic' | 'grateful'>('heartfelt');
   const [isGeneratingCoachMsg, setIsGeneratingCoachMsg] = useState<boolean>(false);
-  const [isSendingBirthdayMsg, setIsSendingBirthdayMsg] = useState<boolean>(false);
-  const [birthdaySentSuccess, setBirthdaySentSuccess] = useState<boolean>(false);
-  const [showCoachInput, setShowCoachInput] = useState<boolean>(false);
+
+  // Recent Activity Feed state
+  const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
 
   const todayDateStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    if (!userProfile) return;
-    loadCheckIns();
-    loadConversationStarters();
-    loadNotifications();
-  }, [userProfile, partnerProfile, coupleSpace]);
+    if (!userProfile || !currentUser) return;
+    loadDashboardData();
+  }, [userProfile?.uid, partnerProfile?.uid, coupleSpace?.id]);
 
-  // Real-time listener on couple birthday messages
-  useEffect(() => {
-    if (!coupleSpace?.id) {
-      setReceivedBirthdayMessages([]);
-      return;
+  const getGreetingByTime = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const loadDashboardData = async () => {
+    if (!currentUser) return;
+    setLoadingData(true);
+    try {
+      // 1. Fetch user's connections
+      const qConn = query(collection(db, 'couples'), where('memberIds', 'array-contains', currentUser.uid));
+      const connSnap = await getDocs(qConn);
+      const connList: UserConnectionData[] = [];
+
+      for (const spaceDoc of connSnap.docs) {
+        const space = { id: spaceDoc.id, ...spaceDoc.data() } as CoupleSpace;
+        const partnerId = space.memberIds?.find(id => id !== currentUser.uid);
+        let partnerData: UserProfile | null = null;
+
+        if (partnerId) {
+          try {
+            const pSnap = await getDoc(doc(db, 'users', partnerId));
+            if (pSnap.exists()) {
+              partnerData = { uid: pSnap.id, ...pSnap.data() } as UserProfile;
+            }
+          } catch (e) {
+            console.warn("Notice loading connection profile:", e);
+          }
+        }
+
+        connList.push({ space, partner: partnerData });
+      }
+      setUserConnections(connList);
+
+      // 2. Check today's private check-in
+      const todayRef = doc(db, 'users', currentUser.uid, 'checkIns', todayDateStr);
+      const todaySnap = await getDoc(todayRef);
+      if (todaySnap.exists()) {
+        const data = todaySnap.data() as UserCheckIn;
+        setTodayUserCheckIn(data);
+        setTodayCheckedIn(true);
+      } else {
+        setTodayUserCheckIn(null);
+        setTodayCheckedIn(false);
+      }
+
+      // 3. Check partner's shared check-in summary today if in space
+      if (partnerProfile && coupleSpace?.id) {
+        const partnerSummaryRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', `${todayDateStr}_${partnerProfile.uid}`);
+        const partnerSummarySnap = await getDoc(partnerSummaryRef);
+        if (partnerSummarySnap.exists()) {
+          setPartnerSharedSummary(partnerSummarySnap.data() as SharedCheckInSummary);
+        } else {
+          setPartnerSharedSummary(null);
+        }
+      }
+
+      // 4. Fetch notifications count
+      try {
+        const notifRef = collection(db, 'notifications', currentUser.uid, 'items');
+        const notifSnap = await getDocs(notifRef);
+        setNotifications(notifSnap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification)));
+      } catch {
+        setNotifications([]);
+      }
+
+      // 5. Load real recent activity if user has active space
+      if (coupleSpace?.id) {
+        await loadRealRecentActivity(coupleSpace.id);
+      } else {
+        setRecentActivities([]);
+      }
+
+    } catch (err) {
+      console.error("Dashboard data load error:", err);
+    } finally {
+      setLoadingData(false);
     }
+  };
 
-    const bRef = collection(db, 'couples', coupleSpace.id, 'birthdayMessages');
-    const unsub = onSnapshot(bRef, (snapshot) => {
-      const items = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      } as BirthdayMessage));
-      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setReceivedBirthdayMessages(items);
-    }, (err) => {
-      console.warn("Birthday messages listener notice:", err);
-    });
+  const loadRealRecentActivity = async (spaceId: string) => {
+    const activities: ActivityItem[] = [];
 
-    return () => unsub();
-  }, [coupleSpace?.id]);
+    try {
+      // a. Shared Memories
+      const memSnap = await getDocs(query(collection(db, 'couples', spaceId, 'memories'), limit(5)));
+      memSnap.docs.forEach(d => {
+        const data = d.data() as SharedMemory;
+        activities.push({
+          id: d.id,
+          type: 'memory',
+          title: data.title || 'Shared Memory',
+          subtitle: data.description ? `"${data.description.slice(0, 40)}..."` : 'Added a new memory to space',
+          dateStr: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently',
+          icon: '📸'
+        });
+      });
+
+      // b. Goals
+      const goalSnap = await getDocs(query(collection(db, 'couples', spaceId, 'goals'), limit(5)));
+      goalSnap.docs.forEach(d => {
+        const data = d.data() as CoupleGoal;
+        activities.push({
+          id: d.id,
+          type: 'goal',
+          title: data.title || 'Shared Goal',
+          subtitle: data.status === 'completed' ? 'Goal marked as completed! 🎉' : 'Active goal in progress',
+          dateStr: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently',
+          icon: '🎯'
+        });
+      });
+
+      // c. Important Dates
+      const dateSnap = await getDocs(query(collection(db, 'couples', spaceId, 'importantDates'), limit(5)));
+      dateSnap.docs.forEach(d => {
+        const data = d.data() as ImportantDate;
+        activities.push({
+          id: d.id,
+          type: 'date',
+          title: data.title || 'Important Date',
+          subtitle: data.date ? `Scheduled for ${data.date}` : 'Added important date',
+          dateStr: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently',
+          icon: '📅'
+        });
+      });
+
+      // Sort by newest date if possible
+      setRecentActivities(activities.slice(0, 4));
+    } catch (e) {
+      console.warn("Notice loading recent activity:", e);
+      setRecentActivities([]);
+    }
+  };
+
+  const getConnectionTypeBadge = (typeStr?: string) => {
+    const matched = CONNECTION_TYPE_OPTIONS.find(
+      opt => opt.type === typeStr || opt.label.toLowerCase() === (typeStr || '').toLowerCase()
+    );
+    if (matched) {
+      return { label: matched.label, emoji: matched.emoji };
+    }
+    return { label: 'Partner / Lover', emoji: '❤️' };
+  };
+
+  const handleSelectConnectionCard = (conn: UserConnectionData) => {
+    setCoupleSpace(conn.space);
+    onNavigateTab('couple');
+  };
 
   const handleGenerateCoachBirthdayMessage = async () => {
     if (!partnerProfile) return;
@@ -149,7 +297,6 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
         selectedTone
       );
       setBirthdayDraft(generated);
-      setShowCoachInput(false);
     } catch (err) {
       console.warn("Coach generator error:", err);
     } finally {
@@ -157,1368 +304,523 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigateTab, onO
     }
   };
 
-  const handleConfirmSendBirthdayMessage = async () => {
-    if (!coupleSpace?.id || !userProfile || !partnerProfile || !birthdayDraft.trim()) return;
-    setIsSendingBirthdayMsg(true);
-    try {
-      const newMsgId = `bday_${Date.now()}`;
-      const msgDocRef = doc(db, 'couples', coupleSpace.id, 'birthdayMessages', newMsgId);
-      
-      const newMsg: BirthdayMessage = {
-        id: newMsgId,
-        coupleId: coupleSpace.id,
-        senderId: userProfile.uid,
-        senderName: userProfile.displayName || 'Partner',
-        recipientId: partnerProfile.uid,
-        message: birthdayDraft.trim(),
-        birthdayDate: todayDateStr,
-        createdAt: new Date().toISOString()
-      };
-
-      await setDoc(msgDocRef, newMsg);
-
-      await sendPartnerNotification(
-        partnerProfile.uid,
-        "Happy Birthday! ❤️🎂",
-        `${userProfile.displayName || 'Your partner'} sent you a heartfelt birthday message!`,
-        'memory'
-      );
-
-      setBirthdaySentSuccess(true);
-      setShowBirthdayConfirm(false);
-      setShowBirthdayComposer(false);
-      setBirthdayDraft('');
-      setCoachNotes('');
-      setTimeout(() => setBirthdaySentSuccess(false), 4000);
-    } catch (err) {
-      console.error("Error sending birthday message:", err);
-    } finally {
-      setIsSendingBirthdayMsg(false);
-    }
-  };
-
-  // Real-time listener on couple goals
-  useEffect(() => {
-    if (!coupleSpace?.id) {
-      setCoupleGoals([]);
-      return;
-    }
-
-    const goalsCol = collection(db, 'couples', coupleSpace.id, 'goals');
-    const unsub = onSnapshot(goalsCol, (snapshot) => {
-      const items = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      } as CoupleGoal));
-      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setCoupleGoals(items);
-    }, (err) => {
-      console.warn("Couple goals listener notice:", err);
-    });
-
-    return () => unsub();
-  }, [coupleSpace?.id]);
-
-  // Real-time listener on couple shared check-in summaries
-  useEffect(() => {
-    if (!coupleSpace?.id || !userProfile) {
-      setPartnerSharedSummary(null);
-      return;
-    }
-
-    const sharedCol = collection(db, 'couples', coupleSpace.id, 'sharedCheckIns');
-    const unsub = onSnapshot(sharedCol, (snapshot) => {
-      const summaries = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      } as SharedCheckInSummary));
-
-      // Find partner's summary for today
-      const partnerToday = summaries.find(s => s.userId !== userProfile.uid && s.date === todayDateStr);
-      setPartnerSharedSummary(partnerToday || null);
-    }, (err) => {
-      console.warn("Shared check-ins listener notice:", err);
-    });
-
-    return () => unsub();
-  }, [coupleSpace?.id, userProfile?.uid, todayDateStr]);
-
-  // Real-time listener on couple shared conversation starters
-  useEffect(() => {
-    if (!coupleSpace?.id || !userProfile) {
-      setPartnerSharedConversation(null);
-      return;
-    }
-
-    const convCol = collection(db, 'couples', coupleSpace.id, 'sharedConversations');
-    const unsub = onSnapshot(convCol, (snapshot) => {
-      const items = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      } as SharedConversationStarter));
-
-      const partnerItems = items.filter(d => d.userId !== userProfile.uid);
-      if (partnerItems.length > 0) {
-        partnerItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setPartnerSharedConversation(partnerItems[0]);
-      } else {
-        setPartnerSharedConversation(null);
-      }
-    }, (err) => {
-      console.warn("Shared conversations listener notice:", err);
-    });
-
-    return () => unsub();
-  }, [coupleSpace?.id, userProfile?.uid]);
-
-  const loadConversationStarters = async () => {
-    if (!userProfile) return;
-    try {
-      // Load user's saved starters count
-      const myStartersSnap = await getDocs(collection(db, 'users', userProfile.uid, 'conversationStarters'));
-      setSavedStartersCount(myStartersSnap.size);
-
-      // If in couple, check for any shared conversation starter from partner
-      if (partnerProfile && coupleSpace?.id) {
-        const sharedQ = query(collection(db, 'couples', coupleSpace.id, 'sharedConversations'), limit(5));
-        const sharedSnap = await getDocs(sharedQ);
-        const partnerItems = sharedSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as SharedConversationStarter))
-          .filter(d => d.userId !== userProfile.uid);
-        
-        if (partnerItems.length > 0) {
-          partnerItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setPartnerSharedConversation(partnerItems[0]);
-        } else {
-          setPartnerSharedConversation(null);
-        }
-      } else {
-        setPartnerSharedConversation(null);
-      }
-    } catch (e) {
-      console.warn("Notice loading conversation starters:", e);
-    }
-  };
-
-  const loadNotifications = async () => {
-    if (!userProfile) return;
-    setLoadingNotifications(true);
-    try {
-      const notifRef = collection(db, 'notifications', userProfile.uid, 'items');
-      const snap = await getDocs(notifRef);
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
-      setNotifications(items);
-    } catch (e) {
-      // In case subcollection doesn't exist yet, notifications list defaults to empty
-      setNotifications([]);
-    } finally {
-      setLoadingNotifications(false);
-    }
-  };
-
-  const loadCheckIns = async () => {
-    if (!userProfile) return;
-    setLoadingData(true);
-    try {
-      // 1. Load user's checkin for today from private collection
-      const todayRef = doc(db, 'users', userProfile.uid, 'checkIns', todayDateStr);
-      const todaySnap = await getDoc(todayRef);
-      if (todaySnap.exists()) {
-        const data = todaySnap.data() as UserCheckIn;
-        setTodayUserCheckIn(data);
-        setTodayCheckedIn(true);
-      } else {
-        setTodayUserCheckIn(null);
-        setTodayCheckedIn(false);
-      }
-
-      // 2. Load user's past check-ins (real records only)
-      const pastSnap = await getDocs(collection(db, 'users', userProfile.uid, 'checkIns'));
-      const pastList = pastSnap.docs.map(d => ({ id: d.id, ...d.data() } as UserCheckIn));
-      pastList.sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
-      setRecentCheckIns(pastList);
-
-      // 3. If in couple, check if partner shared summary today
-      if (partnerProfile && coupleSpace?.id) {
-        const partnerSummaryRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', `${todayDateStr}_${partnerProfile.uid}`);
-        const partnerSummarySnap = await getDoc(partnerSummaryRef);
-        if (partnerSummarySnap.exists()) {
-          const pData = partnerSummarySnap.data() as SharedCheckInSummary;
-          setPartnerSharedSummary(pData);
-        } else {
-          // Fallback check legacy format
-          const legacySummaryRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', todayDateStr);
-          const legacySummarySnap = await getDoc(legacySummaryRef);
-          if (legacySummarySnap.exists()) {
-            const pData = legacySummarySnap.data() as SharedCheckInSummary;
-            if (pData.userId !== userProfile.uid) {
-              setPartnerSharedSummary(pData);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("Notice loading check-ins:", e);
-    } finally {
-      setLoadingData(false);
-    }
-  };
-
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
-
-  const getFeelingScore = (feeling: string) => {
-    switch (feeling) {
-      case 'Very connected': return 5;
-      case 'Good': return 4;
-      case 'Okay': return 3;
-      case 'Something is on my mind': return 2.5;
-      case 'A little distant': return 2;
-      default: return 3;
-    }
-  };
-
-  // CALCULATE REAL METRICS ONLY - ZERO RANDOM, ZERO HARDCODED NUMBERS
-  const totalRealCheckIns = recentCheckIns.length;
-  const hasEnoughPulseData = totalRealCheckIns >= 3;
-
-  // Real calculation from actual recorded checkIns
-  const avgScore = hasEnoughPulseData
-    ? recentCheckIns.reduce((acc, c) => acc + getFeelingScore(c.feeling), 0) / totalRealCheckIns
-    : 0;
-
-  const realConnectionPct = hasEnoughPulseData ? Math.min(100, Math.round((avgScore / 5) * 100)) : 0;
-  const realConsistencyPct = hasEnoughPulseData ? Math.min(100, Math.round((totalRealCheckIns / 7) * 100)) : 0;
-
-  // SKELETON LOADING STATE: Never display fake data while loading
   if (loadingData) {
     return (
-      <div className="space-y-6 pb-24 animate-pulse">
-        {/* Top Header Skeleton */}
+      <div className="space-y-6 pb-24 animate-pulse max-w-md mx-auto">
         <div className="flex items-center justify-between pt-2">
           <div className="space-y-2">
-            <div className="h-3 w-20 bg-white/10 rounded-full" />
-            <div className="h-7 w-36 bg-white/10 rounded-xl" />
+            <div className="h-3 w-24 bg-white/10 rounded-full" />
+            <div className="h-7 w-48 bg-white/10 rounded-xl" />
+            <div className="h-3 w-56 bg-white/5 rounded-full" />
           </div>
-          <div className="h-8 w-32 bg-white/10 rounded-full" />
+          <div className="h-10 w-10 bg-white/10 rounded-full" />
         </div>
-
-        {/* Pulse Skeleton */}
-        <div className="glass-card rounded-3xl p-6 border border-white/10 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-white/10" />
-              <div className="space-y-1.5">
-                <div className="h-4 w-32 bg-white/10 rounded" />
-                <div className="h-2.5 w-44 bg-white/5 rounded" />
-              </div>
-            </div>
-          </div>
-          <div className="py-6 px-4 rounded-2xl bg-zinc-950/60 border border-white/5 flex flex-col items-center space-y-2">
-            <div className="w-8 h-8 rounded-full bg-white/10" />
-            <div className="h-4 w-48 bg-white/10 rounded" />
-            <div className="h-3 w-64 bg-white/5 rounded" />
-          </div>
-        </div>
-
-        {/* Check-in Skeleton */}
-        <div className="glass-card rounded-3xl p-6 border border-white/10 space-y-4">
-          <div className="h-4 w-28 bg-white/10 rounded" />
-          <div className="grid grid-cols-5 gap-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-14 rounded-2xl bg-white/5" />
-            ))}
-          </div>
-          <div className="h-10 rounded-xl bg-white/5" />
-          <div className="h-12 rounded-2xl bg-white/10" />
+        <div className="h-32 rounded-3xl bg-zinc-900/60 border border-white/5" />
+        <div className="h-36 rounded-3xl bg-zinc-900/60 border border-white/5" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-20 rounded-2xl bg-zinc-900/60 border border-white/5" />
+          <div className="h-20 rounded-2xl bg-zinc-900/60 border border-white/5" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 pb-28 animate-fadeIn">
-      {/* Top Header */}
-      <div className="flex items-center justify-between pt-2">
+    <div className="space-y-6 pb-28 max-w-md mx-auto animate-fadeIn">
+      {/* ========================================================= */}
+      {/* 1. HEADER */}
+      {/* ========================================================= */}
+      <div className="flex items-start justify-between pt-2">
         <div>
-          <span className="text-xs uppercase tracking-wider text-zinc-400 font-medium">
-            {getGreeting()}
-          </span>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <span>{userProfile?.displayName || currentUser?.email?.split('@')[0] || 'User'}</span>
-            <span className="inline-block animate-pulse">✨</span>
-          </h1>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Real Notification Bell */}
-          <button
-            onClick={() => setShowNotificationsModal(true)}
-            className="p-2 rounded-full glass-panel border border-white/10 hover:border-rose-500/30 text-zinc-300 hover:text-white transition-all relative cursor-pointer"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4" />
-            {notifications.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-[9px] font-bold text-white flex items-center justify-center shadow-md">
-                {notifications.length}
-              </span>
-            )}
-          </button>
-
-          {/* Couple Connection Badge */}
-          <div 
-            onClick={() => onOpenPairing ? onOpenPairing('options') : onNavigateTab('couple')}
-            className="cursor-pointer glass-panel px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/10 hover:border-rose-500/30 transition-all"
-          >
-            {partnerProfile ? (
-              <>
-                <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                <span className="text-xs font-medium text-zinc-200">
-                  Connected with {partnerProfile.displayName || 'Partner'}
-                </span>
-              </>
-            ) : coupleSpace && (coupleSpace.status === 'waiting' || (coupleSpace.memberIds && coupleSpace.memberIds.length === 1)) ? (
-              <>
-                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-xs font-medium text-amber-300">Waiting for partner</span>
-              </>
-            ) : (
-              <>
-                <div className="w-2 h-2 rounded-full bg-zinc-500" />
-                <span className="text-xs font-medium text-zinc-400">No partner connected yet</span>
-              </>
-            )}
+          <div className="flex items-center gap-2 mb-1">
+            {/* Abstract TRUSTLY Connection Icon */}
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-rose-500 via-purple-600 to-indigo-600 p-[1.5px] shadow-md shadow-rose-500/20">
+              <div className="w-full h-full bg-zinc-950 rounded-[10px] flex items-center justify-center text-white">
+                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
+              </div>
+            </div>
+            <span className="font-mono text-xs font-bold tracking-wider uppercase text-rose-300">
+              TRUSTLY
+            </span>
           </div>
+
+          <span className="text-xs text-zinc-400 font-medium block">
+            {getGreetingByTime()}
+          </span>
+
+          <h1 className="text-2xl font-extrabold tracking-tight text-white mt-0.5">
+            Welcome back, {userProfile?.displayName || currentUser?.email?.split('@')[0] || 'Friend'} 👋
+          </h1>
+
+          <p className="text-xs text-zinc-400 mt-1 leading-snug">
+            Make space for the relationships that matter.
+          </p>
         </div>
+
+        {/* Notification Bell */}
+        <button
+          onClick={() => setShowNotificationsModal(true)}
+          className="p-2.5 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-rose-500/30 text-zinc-300 hover:text-white transition-all relative cursor-pointer"
+          title="Notifications"
+        >
+          <Bell className="w-4.5 h-4.5" />
+          {notifications.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-[9px] font-bold text-white flex items-center justify-center shadow-md">
+              {notifications.length}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* ===================================================================== */}
-      {/* 0A. USER'S BIRTHDAY CELEBRATION CARD */}
-      {/* ===================================================================== */}
+      {/* ========================================================= */}
+      {/* BIRTHDAY BANNER (IF APPLICABLE) */}
+      {/* ========================================================= */}
       {isUserBirthday && (
-        <div className="glass-card rounded-3xl p-6 border border-rose-500/30 bg-gradient-to-r from-rose-500/15 via-purple-500/10 to-amber-500/15 shadow-[0_0_30px_rgba(244,63,94,0.18)] relative overflow-hidden animate-fadeIn">
+        <div className="glass-card rounded-3xl p-5 border border-rose-500/30 bg-gradient-to-r from-rose-500/15 via-purple-500/10 to-amber-500/15 shadow-xl relative overflow-hidden animate-fadeIn">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-2xl flex items-center justify-center shrink-0 shadow-inner">
+            <div className="w-11 h-11 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-xl flex items-center justify-center shrink-0">
               🎉
             </div>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Happy Birthday!</span>
-                <span className="text-xs">🎂✨</span>
-              </h3>
-              <p className="text-xs text-zinc-300 mt-0.5 leading-relaxed">
-                Today is your special day. Wishing you a beautiful year ahead.
+              <h3 className="text-sm font-bold text-white">Happy Birthday! 🎂✨</h3>
+              <p className="text-xs text-zinc-300 mt-0.5">
+                Today is your special day. Wishing you warmth and joy.
               </p>
             </div>
           </div>
-
-          {/* Received Birthday Wishes from Partner */}
-          {receivedBirthdayMessages.filter(m => m.recipientId === userProfile?.uid).length > 0 && (
-            <div className="mt-4 pt-3.5 border-t border-rose-500/20 space-y-2.5">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-rose-300 flex items-center gap-1">
-                <Heart className="w-3 h-3 fill-rose-400 text-rose-400" />
-                <span>Message from {partnerProfile?.displayName || 'Your Partner'}</span>
-              </span>
-              {receivedBirthdayMessages
-                .filter(m => m.recipientId === userProfile?.uid)
-                .map((msg) => (
-                  <div key={msg.id} className="p-3.5 rounded-2xl bg-black/40 border border-white/10 text-xs text-zinc-200 whitespace-pre-wrap leading-relaxed shadow-sm">
-                    "{msg.message}"
-                  </div>
-                ))}
-            </div>
-          )}
         </div>
       )}
 
-      {/* ===================================================================== */}
-      {/* 0B. PARTNER'S BIRTHDAY TODAY CARD (Shared) */}
-      {/* ===================================================================== */}
-      {isPartnerBirthday && partnerProfile && (
-        <div className="glass-card rounded-3xl p-6 border border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-purple-500/15 shadow-[0_0_30px_rgba(245,158,11,0.18)] relative overflow-hidden animate-fadeIn">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 text-2xl flex items-center justify-center shrink-0 shadow-inner">
-                🎂
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
-                  Birthday Today
-                </span>
-                <h3 className="text-base font-bold text-white">
-                  It's {partnerProfile.displayName || 'your partner'}'s birthday today!
-                </h3>
-                <p className="text-xs text-zinc-300 mt-0.5 leading-relaxed">
-                  Make their day a little more special.
-                </p>
-              </div>
-            </div>
-          </div>
+      {/* ========================================================= */}
+      {/* 2. MY CONNECTIONS SECTION */}
+      {/* ========================================================= */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+            <Users className="w-4 h-4 text-violet-400" />
+            <span>My Connections</span>
+          </h2>
 
-          <div className="mt-4 pt-3.5 border-t border-amber-500/20 flex items-center justify-between">
-            {birthdaySentSuccess ? (
-              <span className="text-xs text-emerald-400 font-medium flex items-center gap-1">
-                <Check className="w-3.5 h-3.5" /> Birthday message sent!
-              </span>
-            ) : (
-              <span className="text-[11px] text-amber-300/80">
-                Send a warm surprise wish
-              </span>
-            )}
-
-            <button
-              onClick={() => {
-                setBirthdayDraft('');
-                setCoachNotes('');
-                setShowBirthdayComposer(true);
-              }}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-600 hover:opacity-95 text-white font-semibold text-xs shadow-md active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <Heart className="w-3.5 h-3.5" />
-              <span>Write a Birthday Message</span>
-            </button>
-          </div>
+          <button
+            onClick={() => onOpenPairing ? onOpenPairing('options') : onNavigateTab('connections')}
+            className="text-xs font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Connection</span>
+          </button>
         </div>
-      )}
 
-      {/* 1. CREATE COUPLE SPACE CARD (When user has no couple) */}
-      {!userProfile?.coupleId && (
-        <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl animate-fadeIn">
-          <div className="flex items-center gap-3.5 mb-2">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-rose-500/20 to-purple-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
+        {userConnections.length === 0 ? (
+          /* Empty Connections State */
+          <div className="glass-card rounded-3xl p-6 border border-white/10 text-center space-y-3 bg-zinc-900/60">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 mx-auto flex items-center justify-center">
+              <Users className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight">
-                Your Couple Space is waiting.
-              </h2>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Create a private space and invite your partner.
+              <h3 className="text-sm font-bold text-white">No connections yet.</h3>
+              <p className="text-xs text-zinc-400 mt-1 max-w-xs mx-auto leading-relaxed">
+                Choose someone important to you and create your first private connection.
               </p>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mt-4">
             <button
-              onClick={() => onOpenPairing ? onOpenPairing('create') : onNavigateTab('couple')}
-              className="py-3.5 px-3 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-indigo-600 text-white font-semibold text-xs shadow-md shadow-rose-600/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              onClick={() => onOpenPairing ? onOpenPairing('options') : onNavigateTab('connections')}
+              className="py-3 px-5 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-violet-600 text-white font-semibold text-xs shadow-md shadow-rose-600/20 hover:opacity-95 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
-              <span>Create Couple Space</span>
-            </button>
-            <button
-              onClick={() => onOpenPairing ? onOpenPairing('join') : onNavigateTab('couple')}
-              className="py-3.5 px-3 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-medium text-xs border border-white/10 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>Join with Code</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create Connection</span>
             </button>
           </div>
-        </div>
-      )}
+        ) : (
+          /* List of Real User Connections */
+          <div className="space-y-2.5">
+            {userConnections.map((conn) => {
+              const badge = getConnectionTypeBadge(conn.space.connectionType);
+              const partnerName = conn.partner?.displayName || conn.space.creatorName || 'Connection';
+              const isSelected = coupleSpace?.id === conn.space.id;
+              const isConnected = conn.space.status === 'connected' || (conn.space.memberIds && conn.space.memberIds.length >= 2);
 
-      {/* 2. WAITING FOR PARTNER CARD (When couple is created but waiting) */}
-      {userProfile?.coupleId && coupleSpace && (coupleSpace.status === 'waiting' || (coupleSpace.memberIds && coupleSpace.memberIds.length === 1)) && (
-        <div 
-          onClick={() => onOpenPairing ? onOpenPairing('options') : onNavigateTab('couple')}
-          className="glass-card rounded-3xl p-5 border border-amber-500/30 bg-amber-500/[0.04] cursor-pointer hover:border-amber-500/50 transition-all animate-fadeIn"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 flex items-center justify-center">
-                <Heart className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">
-                  {coupleSpace.name || 'Your Couple Space'}
-                </span>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Waiting for your partner…</span>
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
-                </h3>
-              </div>
-            </div>
-
-            <div className="text-right">
-              <span className="font-mono text-xs font-bold text-amber-300 bg-black/40 px-2.5 py-1 rounded-lg border border-amber-500/20 block">
-                {coupleSpace.inviteCode}
-              </span>
-              <span className="text-[9px] text-zinc-400 mt-1 block">Tap to share</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. COUPLE DASHBOARD (Connected Couple Visualization) */}
-      {userProfile?.coupleId && coupleSpace && (coupleSpace.status === 'connected' || (coupleSpace.memberIds && coupleSpace.memberIds.length >= 2)) && (
-        <div className="glass-card rounded-3xl p-5 border border-white/10 relative overflow-hidden shadow-2xl animate-fadeIn">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-[10px] uppercase tracking-wider text-rose-400 font-semibold">
-                {coupleSpace.name}
-              </span>
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <span>You're connected.</span>
-                <span className="text-rose-500 text-xs">❤️</span>
-              </h3>
-            </div>
-            <span className="text-[10px] px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
-              Connected
-            </span>
-          </div>
-
-          {/* Two-Node Profile Visualization */}
-          <div className="flex items-center justify-center gap-4 py-2">
-            {/* User Node */}
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full border-2 border-rose-500/50 overflow-hidden bg-zinc-900 flex items-center justify-center text-white font-bold text-base shadow-md">
-                {userProfile?.photoURL ? (
-                  <img src={userProfile.photoURL} alt={userProfile.displayName} className="w-full h-full object-cover" />
-                ) : (
-                  <span>{userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}</span>
-                )}
-              </div>
-              <span className="text-[10px] text-zinc-300 font-semibold mt-1.5 truncate max-w-[70px]">
-                {userProfile?.displayName || 'You'}
-              </span>
-            </div>
-
-            {/* Bridge */}
-            <div className="flex-1 max-w-[100px] relative flex items-center justify-center">
-              <div className="w-full h-[1.5px] bg-gradient-to-r from-rose-500/50 via-purple-500/50 to-indigo-500/50" />
-              <div className="absolute w-5 h-5 rounded-full bg-zinc-950 border border-rose-500/30 flex items-center justify-center shadow-[0_0_10px_rgba(244,63,94,0.3)]">
-                <Heart className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
-              </div>
-            </div>
-
-            {/* Partner Node */}
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full border-2 border-indigo-500/50 overflow-hidden bg-zinc-900 flex items-center justify-center text-white font-bold text-base shadow-md">
-                {partnerProfile?.photoURL ? (
-                  <img src={partnerProfile.photoURL} alt={partnerProfile.displayName} className="w-full h-full object-cover" />
-                ) : (
-                  <span>{partnerProfile?.displayName?.charAt(0).toUpperCase() || 'P'}</span>
-                )}
-              </div>
-              <span className="text-[10px] text-zinc-300 font-semibold mt-1.5 truncate max-w-[70px]">
-                {partnerProfile?.displayName || 'Partner'}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Card: Relationship Pulse (Uses Real Data Only) */}
-      <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-44 h-44 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-indigo-600 flex items-center justify-center shadow-md">
-                <Activity className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white">Relationship Pulse</h3>
-                <span className="text-[11px] text-zinc-400 block">
-                  {hasEnoughPulseData ? 'Based on your real submitted check-ins.' : 'Requires active check-ins to compute.'}
-                </span>
-              </div>
-            </div>
-
-            {hasEnoughPulseData && (
-              <div className="text-right">
-                <span className="text-xs font-semibold text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
-                  {totalRealCheckIns} Check-ins Logged
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* If there isn't enough real shared data: Proper empty state */}
-          {!hasEnoughPulseData ? (
-            <div className="py-6 px-4 text-center rounded-2xl bg-zinc-950/60 border border-white/5 my-2">
-              <Compass className="w-8 h-8 text-rose-400/80 mx-auto mb-2" />
-              <h4 className="text-sm font-semibold text-zinc-200 mb-1">
-                Your Relationship Pulse will appear after you complete your first shared check-ins.
-              </h4>
-              <p className="text-xs text-zinc-400 max-w-xs mx-auto mb-4 leading-relaxed">
-                TRUSTLY never invents fake scores. Once you and your partner log 3 real reflections, your pulse metrics will emerge naturally.
-              </p>
-              <span className="text-[11px] text-zinc-500 font-mono">
-                {totalRealCheckIns} / 3 check-ins recorded
-              </span>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 my-4">
-              <div className="p-3.5 rounded-2xl bg-zinc-950/60 border border-white/5">
-                <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
-                  <span>Connection</span>
-                  <span className="font-semibold text-rose-300">{realConnectionPct}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-700" 
-                    style={{ width: `${realConnectionPct}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-zinc-950/60 border border-white/5">
-                <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
-                  <span>Consistency</span>
-                  <span className="font-semibold text-blue-300">{realConsistencyPct}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-700" 
-                    style={{ width: `${realConsistencyPct}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="pt-2 text-[11px] text-zinc-400 text-center flex items-center justify-center gap-1.5">
-            <Lock className="w-3 h-3 text-zinc-400" />
-            <span>Not a diagnostic tool. Voluntary signals designed to guide positive dialogue.</span>
-          </div>
-        </div>
-      </div>
-
-      {/* DAILY RELATIONSHIP CHECK-IN ENTRY POINT */}
-      <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-36 h-36 bg-rose-500/15 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-36 h-36 bg-purple-500/15 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="relative">
-          {!todayUserCheckIn ? (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">
-                  <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
-                  <span>Daily Relationship Check-In</span>
-                </div>
-                <span className="text-[11px] font-mono text-zinc-400">
-                  {todayDateStr}
-                </span>
-              </div>
-
-              <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
-                How are you feeling about your relationship today?
-              </h3>
-              <p className="text-xs text-zinc-400 mt-1 mb-5 leading-relaxed">
-                A calm 30–60 second private reflection to notice your feelings and nurture mutual rhythm.
-              </p>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCheckInModalInitialTab('checkin');
-                    setShowCheckInModal(true);
-                  }}
-                  className="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-indigo-600 text-white font-semibold text-xs shadow-lg shadow-rose-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ring-1 ring-white/20"
+              return (
+                <div
+                  key={conn.space.id}
+                  onClick={() => handleSelectConnectionCard(conn)}
+                  className={`glass-card rounded-3xl p-4 border transition-all cursor-pointer relative overflow-hidden group shadow-lg ${
+                    isSelected
+                      ? 'border-rose-500/50 bg-rose-500/[0.06] ring-1 ring-rose-500/30'
+                      : 'border-white/10 hover:border-white/20 bg-zinc-900/60'
+                  }`}
                 >
-                  <span>Start Check-In</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar */}
+                      <div className="w-11 h-11 rounded-2xl border border-white/15 bg-zinc-950 flex items-center justify-center text-white font-bold text-sm overflow-hidden shrink-0 shadow-md">
+                        {conn.partner?.photoURL ? (
+                          <img src={conn.partner.photoURL} alt={partnerName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span>{partnerName.charAt(0).toUpperCase()}</span>
+                        )}
+                      </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCheckInModalInitialTab('history');
-                    setShowCheckInModal(true);
-                  }}
-                  className="py-3.5 px-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 font-medium text-xs border border-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
-                  title="Past Check-ins"
-                >
-                  <History className="w-4 h-4" />
-                  <span>History</span>
-                </button>
-              </div>
-            </>
-          ) : (
-            /* Today's Check-in Complete Card */
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">{todayUserCheckIn.feelingEmoji || '❤️'}</span>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-rose-400 block">
-                      Today's Check-In Complete 💗
-                    </span>
-                    <h3 className="text-base font-bold text-white">
-                      {todayUserCheckIn.feeling}
-                    </h3>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-sm text-white truncate max-w-[140px]">
+                            {partnerName}
+                          </h3>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-200 font-medium inline-flex items-center gap-1">
+                            <span>{badge.emoji}</span>
+                            <span>{badge.label}</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-1">
+                          {isConnected ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                              <span>Connection Active</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-medium">
+                              <Clock className="w-3 h-3 text-amber-400" />
+                              <span>Pending Invitation</span>
+                            </span>
+                          )}
+
+                          <span className="text-zinc-600">•</span>
+
+                          <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400">
+                            <Lock className="w-3 h-3 text-zinc-500" />
+                            <span>Private</span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-zinc-400 group-hover:text-white transition-colors">
+                      <ChevronRight className="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" />
+                    </div>
                   </div>
                 </div>
-                
-                <div className="flex items-center gap-1.5">
-                  {todayUserCheckIn.shareWithPartner ? (
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-                      <Share2 className="w-2.5 h-2.5" /> Summary Shared
-                    </span>
-                  ) : (
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold bg-zinc-800 text-zinc-400 flex items-center gap-1 border border-white/5">
-                      <Lock className="w-2.5 h-2.5" /> Private
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {todayUserCheckIn.areas && todayUserCheckIn.areas.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {todayUserCheckIn.areas.map(a => (
-                    <span key={a} className="text-[10px] font-medium px-2 py-0.5 rounded-lg bg-zinc-900 text-zinc-300 border border-white/5">
-                      {a}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {todayUserCheckIn.sharedSummary && (
-                <div className="p-3 rounded-xl bg-purple-950/20 border border-purple-500/20 text-xs text-purple-200 leading-relaxed">
-                  <span className="text-purple-400 font-semibold block text-[10px] mb-0.5">Shared with partner:</span>
-                  "{todayUserCheckIn.sharedSummary}"
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                <span className="text-[11px] text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Completed for today
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCheckInModalInitialTab('checkin');
-                      setShowCheckInModal(true);
-                    }}
-                    className="text-xs font-semibold text-rose-300 hover:text-rose-200 underline cursor-pointer"
-                  >
-                    Update
-                  </button>
-                  <span className="text-zinc-600">•</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCheckInModalInitialTab('history');
-                      setShowCheckInModal(true);
-                    }}
-                    className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 cursor-pointer"
-                  >
-                    View History
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Partner's Shared Reflection Card (When available from partner) */}
-      {partnerProfile && partnerSharedSummary && (
-        <div className="glass-card rounded-3xl p-5 border border-purple-500/30 bg-purple-950/15 animate-fadeIn">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-              <span>💌</span>
-              <span>Partner Reflection from {partnerProfile.displayName}</span>
-            </span>
-            <span className="text-[10px] font-mono text-zinc-400">
-              {partnerSharedSummary.date}
-            </span>
-          </div>
-          <p className="text-xs text-purple-100 font-medium leading-relaxed bg-black/30 p-3 rounded-2xl border border-purple-500/20">
-            "{partnerSharedSummary.sharedSummary}"
-          </p>
-          {partnerSharedSummary.areas && partnerSharedSummary.areas.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2.5">
-              {partnerSharedSummary.areas.map(a => (
-                <span key={a} className="text-[9px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  {a}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Partner's Shared Conversation Starter (When available from partner) */}
-      {partnerProfile && partnerSharedConversation && (
-        <div className="glass-card rounded-3xl p-5 border border-indigo-500/30 bg-indigo-950/15 animate-fadeIn">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-              <span>💬</span>
-              <span>Conversation Topic from {partnerProfile.displayName}</span>
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-200 border border-indigo-500/30">
-              {partnerSharedConversation.category}
-            </span>
-          </div>
-          <p className="text-xs text-indigo-100 font-medium leading-relaxed bg-black/30 p-3 rounded-2xl border border-indigo-500/20">
-            "{partnerSharedConversation.content.starter}"
-          </p>
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-[11px] text-zinc-400">
-              Open to talk through with warmth
-            </span>
-            {onOpenCoachWithTopic && (
-              <button
-                type="button"
-                onClick={() => {
-                  const prompt = `My partner ${partnerProfile.displayName} shared this conversation topic: "${partnerSharedConversation.content.starter}". How can I respond with curiosity, warmth, and emotional openness?`;
-                  onOpenCoachWithTopic(prompt);
-                }}
-                className="text-xs font-semibold text-violet-300 hover:text-violet-200 flex items-center gap-1 cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Talk to Coach</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* THINGS WORTH TALKING ABOUT CARD */}
-      <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-36 h-36 bg-violet-500/15 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-36 h-36 bg-rose-500/15 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="relative space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-semibold">
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Things Worth Talking About</span>
-            </div>
-            {savedStartersCount > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setConversationModalInitialTab('history');
-                  setShowConversationModal(true);
-                }}
-                className="text-[11px] font-mono text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20 hover:bg-violet-500/20 transition-colors cursor-pointer"
-              >
-                {savedStartersCount} Saved
-              </button>
-            )}
-          </div>
-
+      {/* ========================================================= */}
+      {/* 3. TODAY SECTION */}
+      {/* ========================================================= */}
+      <div className="glass-card rounded-3xl p-5 border border-white/10 bg-zinc-900/60 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
-              Turn what's on your mind into a conversation.
-            </h3>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Transform sensitive relationship concerns into calm, respectful conversation starters.
+            <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+              <Activity className="w-4 h-4 text-rose-400" />
+              <span>Today</span>
+            </h2>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              How are your connections feeling today?
             </p>
           </div>
 
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                setConversationModalInitialTab('create');
-                setShowConversationModal(true);
-              }}
-              className="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-rose-600 text-white font-semibold text-xs shadow-lg shadow-purple-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ring-1 ring-white/20"
-            >
-              <span>Start a Conversation</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setConversationModalInitialTab('history');
-                setShowConversationModal(true);
-              }}
-              className="py-3.5 px-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 font-medium text-xs border border-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
-              title="Your Conversation Starters"
-            >
-              <History className="w-4 h-4" />
-              <span>History</span>
-            </button>
-          </div>
+          {todayCheckedIn && (
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold flex items-center gap-1">
+              <Check className="w-3 h-3" />
+              <span>Check-in Complete</span>
+            </span>
+          )}
         </div>
-      </div>
 
-      {/* YOUR GOALS CARD (For connected couples) */}
-      {coupleSpace?.id && (
-        <div className="glass-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-2xl">
-          <div className="absolute top-0 right-0 w-36 h-36 bg-rose-500/15 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-36 h-36 bg-amber-500/15 rounded-full blur-2xl pointer-events-none" />
+        {/* Real Daily Check-in Card */}
+        <div className="p-4 rounded-2xl bg-zinc-950/80 border border-white/5 space-y-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-300 font-medium">Your Daily Reflection</span>
+            <span className="text-zinc-500 font-mono text-[10px]">{todayDateStr}</span>
+          </div>
 
-          <div className="relative space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">
-                <Target className="w-3.5 h-3.5 text-rose-400" />
-                <span>Your Goals</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGoalsModalInitialTab('active');
-                    setGoalsModalInitialMode('list');
-                    setShowGoalsModal(true);
-                  }}
-                  className="text-[11px] font-mono text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20 hover:bg-rose-500/20 transition-colors cursor-pointer"
-                >
-                  {coupleGoals.filter(g => g.status !== 'completed').length} Active
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGoalsModalInitialTab('milestones');
-                    setGoalsModalInitialMode('list');
-                    setShowGoalsModal(true);
-                  }}
-                  className="text-[11px] font-mono text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 hover:bg-purple-500/20 transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  <Trophy className="w-3 h-3 text-purple-400" />
-                  <span>{coupleGoals.filter(g => g.status === 'completed').length} Milestones</span>
-                </button>
+          {todayCheckedIn && todayUserCheckIn ? (
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{todayUserCheckIn.feelingEmoji || '✨'}</span>
+              <div>
+                <div className="text-xs font-bold text-white">Feeling {todayUserCheckIn.feeling}</div>
+                <div className="text-[10px] text-zinc-400 mt-0.5">
+                  {todayUserCheckIn.shareWithPartner ? 'Shared with connection space' : 'Saved privately in your journal'}
+                </div>
               </div>
             </div>
+          ) : (
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Take 60 seconds to reflect on your current mood and boundaries.
+            </p>
+          )}
 
-            {coupleGoals.length === 0 ? (
-              <div className="space-y-3">
-                <div>
-                  <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
-                    No shared goals yet.
-                  </h3>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                    Choose something you'd like to work toward together.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGoalsModalInitialMode('create');
-                    setShowGoalsModal(true);
-                  }}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-indigo-600 text-white font-semibold text-xs shadow-lg shadow-rose-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ring-1 ring-white/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Create Your First Goal</span>
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div>
-                  <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
-                    Build something together.
-                  </h3>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                    Meaningful goals and shared milestones crafted with love.
-                  </p>
-                </div>
-
-                {/* Latest Active Goal Preview */}
-                {(() => {
-                  const latestActive = coupleGoals.find(g => g.status !== 'completed');
-                  if (!latestActive) return null;
-                  return (
-                    <div 
-                      onClick={() => {
-                        setGoalsModalInitialTab('active');
-                        setGoalsModalInitialMode('list');
-                        setShowGoalsModal(true);
-                      }}
-                      className="p-3 rounded-2xl bg-zinc-900/70 border border-white/5 hover:border-white/15 transition-all cursor-pointer flex items-center justify-between"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300">
-                            {latestActive.category}
-                          </span>
-                          {latestActive.deadline && (
-                            <span className="text-[10px] font-mono text-zinc-500">
-                              • Due {latestActive.deadline}
-                            </span>
-                          )}
-                        </div>
-                        <h4 className="text-xs font-bold text-white">
-                          {latestActive.title}
-                        </h4>
-                      </div>
-                      <ArrowRight className="w-4 h-4 text-zinc-400 shrink-0" />
-                    </div>
-                  );
-                })()}
-
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGoalsModalInitialMode('create');
-                      setShowGoalsModal(true);
-                    }}
-                    className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-semibold text-xs shadow-lg shadow-rose-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Create a Goal</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGoalsModalInitialMode('list');
-                      setShowGoalsModal(true);
-                    }}
-                    className="py-3 px-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 font-medium text-xs border border-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>View All</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => {
+              setCheckInModalInitialTab('checkin');
+              setShowCheckInModal(true);
+            }}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 via-rose-600 to-violet-600 text-white font-semibold text-xs shadow-md shadow-rose-600/20 hover:opacity-95 active:scale-[0.985] cursor-pointer flex items-center justify-center gap-2 ring-1 ring-white/20 transition-all"
+          >
+            <span>{todayCheckedIn ? 'Update Daily Check-in' : 'Daily Check-in'}</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
-      )}
 
-      {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-2 gap-3.5">
-        <button
-          onClick={() => onNavigateTab('trust')}
-          className="p-4 rounded-3xl bg-zinc-900/70 border border-white/10 hover:border-rose-500/30 text-left transition-all group flex flex-col justify-between cursor-pointer"
-        >
-          <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center mb-2">
-            <ShieldCheck className="w-4 h-4" />
+        {/* Partner Shared Summary (if available today) */}
+        {partnerSharedSummary && partnerProfile && (
+          <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-xs space-y-1.5 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-purple-300 flex items-center gap-1.5">
+                <span>{partnerSharedSummary.feelingEmoji || '🤝'}</span>
+                <span>{partnerProfile.displayName || 'Connection'} shared today:</span>
+              </span>
+              <span className="text-[10px] text-purple-300/70 font-mono">Shared Pulse</span>
+            </div>
+            <p className="text-zinc-200 text-xs italic leading-relaxed">
+              "{partnerSharedSummary.sharedSummary}"
+            </p>
           </div>
-          <div>
-            <h4 className="text-sm font-semibold text-white group-hover:text-rose-300">Trust Check</h4>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Answer privately & compare safely</p>
-          </div>
-        </button>
-
-        <button
-          onClick={() => onNavigateTab('coach')}
-          className="p-4 rounded-3xl bg-zinc-900/70 border border-white/10 hover:border-indigo-500/30 text-left transition-all group flex flex-col justify-between cursor-pointer"
-        >
-          <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-2">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <h4 className="text-sm font-semibold text-white group-hover:text-indigo-300">AI Coach</h4>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Communicate clearly & gently</p>
-          </div>
-        </button>
+        )}
       </div>
 
-      {/* TRUSTLY Plus Discovery Card (for Free users) */}
-      {!isPlus && (
-        <div 
-          onClick={() => openPricingModal('dashboard_banner')}
-          className="glass-card rounded-3xl p-4.5 border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-rose-500/5 to-purple-500/10 flex items-center justify-between cursor-pointer shadow-lg hover:border-amber-500/50 transition-all"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
-              <Crown className="w-4 h-4" />
+      {/* ========================================================= */}
+      {/* 4. QUICK ACTIONS GRID */}
+      {/* ========================================================= */}
+      <div className="space-y-3">
+        <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+          <Zap className="w-4 h-4 text-amber-400" />
+          <span>Quick Actions</span>
+        </h2>
+
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {/* Action 1: Start a Conversation */}
+          <button
+            onClick={() => setShowConversationModal(true)}
+            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-rose-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md"
+          >
+            <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-3">
+              <MessageSquare className="w-4.5 h-4.5" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h4 className="text-xs font-bold text-white">TRUSTLY Plus</h4>
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                  ₹199/MO
-                </span>
-              </div>
-              <p className="text-[10px] text-zinc-400 mt-0.5">Go deeper together. Advanced Coach & relationship insights.</p>
+              <h3 className="font-bold text-xs text-white group-hover:text-rose-300 transition-colors">
+                Start a Conversation
+              </h3>
+              <p className="text-[10px] text-zinc-400 mt-0.5">
+                Gentle starters
+              </p>
             </div>
-          </div>
-          <ArrowRight className="w-4 h-4 text-amber-400 shrink-0" />
-        </div>
-      )}
+          </button>
 
-      {/* Things Worth Talking About Quick Banner */}
-      <div 
-        onClick={() => onNavigateTab('trust')}
-        className="cursor-pointer glass-panel p-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all flex items-center justify-between"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-300 flex items-center justify-center">
-            <MessageSquare className="w-4 h-4" />
-          </div>
-          <div>
-            <h4 className="text-xs font-semibold text-zinc-200">Things Worth Talking About</h4>
-            <p className="text-[10px] text-zinc-400">Notice distance or changes? Start a healthy conversation.</p>
-          </div>
+          {/* Action 2: Shared Goal */}
+          <button
+            onClick={() => {
+              setGoalsModalInitialMode('create');
+              setShowGoalsModal(true);
+            }}
+            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-violet-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md"
+          >
+            <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center mb-3">
+              <Target className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs text-white group-hover:text-violet-300 transition-colors">
+                Shared Goal
+              </h3>
+              <p className="text-[10px] text-zinc-400 mt-0.5">
+                Build habits together
+              </p>
+            </div>
+          </button>
+
+          {/* Action 3: Add Memory */}
+          <button
+            onClick={() => onNavigateTab('couple')}
+            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-indigo-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md"
+          >
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-3">
+              <Camera className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs text-white group-hover:text-indigo-300 transition-colors">
+                Add Memory
+              </h3>
+              <p className="text-[10px] text-zinc-400 mt-0.5">
+                Save special moments
+              </p>
+            </div>
+          </button>
+
+          {/* Action 4: Important Date */}
+          <button
+            onClick={() => onNavigateTab('couple')}
+            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-emerald-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md"
+          >
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-3">
+              <Calendar className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs text-white group-hover:text-emerald-300 transition-colors">
+                Important Date
+              </h3>
+              <p className="text-[10px] text-zinc-400 mt-0.5">
+                Birthdays & milestones
+              </p>
+            </div>
+          </button>
+
+          {/* Action 5: TRUSTLY Coach */}
+          <button
+            onClick={() => onNavigateTab('coach')}
+            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-amber-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md col-span-2 sm:col-span-1"
+          >
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
+              <Sparkles className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs text-white group-hover:text-amber-300 transition-colors">
+                TRUSTLY Coach
+              </h3>
+              <p className="text-[10px] text-zinc-400 mt-0.5">
+                AI communication advisor
+              </p>
+            </div>
+          </button>
         </div>
-        <ArrowRight className="w-4 h-4 text-zinc-400" />
       </div>
 
-      {/* Real Notifications Modal */}
-      {showNotificationsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-sm bg-[#121216] border border-white/10 rounded-3xl p-6 shadow-2xl relative">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-rose-400" />
-                <h3 className="text-sm font-bold text-white">Notifications</h3>
-              </div>
-              <button 
-                onClick={() => setShowNotificationsModal(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* ========================================================= */}
+      {/* 5. RECENT ACTIVITY */}
+      {/* ========================================================= */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+            <Layers className="w-4 h-4 text-indigo-400" />
+            <span>Recent Activity</span>
+          </h2>
 
-            {loadingNotifications ? (
-              <div className="py-8 text-center text-xs text-zinc-400">
-                <span className="w-4 h-4 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin inline-block mb-2" />
-                <p>Checking updates...</p>
-              </div>
-            ) : notifications.length === 0 ? (
-              <div className="py-8 text-center text-xs text-zinc-400 space-y-2">
-                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-zinc-400">
-                  <Bell className="w-5 h-5 opacity-60" />
-                </div>
-                <p className="font-semibold text-zinc-300">No new notifications.</p>
-                <p className="text-[11px] text-zinc-400">When your partner shares reflections or completes check-ins, updates will appear here.</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5 max-h-60 overflow-y-auto">
-                {notifications.map((n) => (
-                  <div key={n.id} className="p-3 rounded-xl bg-zinc-950/70 border border-white/5 text-xs">
-                    <h5 className="font-semibold text-white">{n.title}</h5>
-                    <p className="text-zinc-300 text-[11px] mt-0.5">{n.message}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
+          {coupleSpace?.id && (
             <button
-              onClick={() => setShowNotificationsModal(false)}
-              className="w-full mt-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold border border-white/5"
+              onClick={() => onNavigateTab('couple')}
+              className="text-xs font-medium text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer"
             >
-              Close
+              <span>View Space</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
-          </div>
+          )}
         </div>
-      )}
 
-      {/* Daily Relationship Check-In Modal */}
+        {recentActivities.length === 0 ? (
+          <div className="p-5 rounded-2xl bg-zinc-900/40 border border-white/5 text-center text-xs text-zinc-400">
+            Nothing new yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {recentActivities.map((act) => (
+              <div
+                key={act.id}
+                onClick={() => onNavigateTab('couple')}
+                className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-white/15 transition-all flex items-center justify-between cursor-pointer group"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl shrink-0">{act.icon}</span>
+                  <div>
+                    <div className="font-semibold text-xs text-white group-hover:text-rose-300 transition-colors">
+                      {act.title}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">
+                      {act.subtitle}
+                    </div>
+                  </div>
+                </div>
+
+                <span className="text-[10px] font-mono text-zinc-500">
+                  {act.dateStr}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================= */}
+      {/* 6. PRIVACY CARD */}
+      {/* ========================================================= */}
+      <div className="glass-card rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.04] space-y-3 relative overflow-hidden shadow-xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
+            <Lock className="w-4 h-4 text-emerald-400" />
+            <span>Private by Default</span>
+          </div>
+
+          <button
+            onClick={() => onNavigateTab('privacy')}
+            className="text-xs font-semibold text-emerald-300 hover:text-white flex items-center gap-1 cursor-pointer"
+          >
+            <span>Privacy Center →</span>
+          </button>
+        </div>
+
+        <p className="text-xs text-zinc-300 leading-relaxed">
+          Your personal reflections and private conversations stay yours unless you choose to share them.
+        </p>
+
+        <div className="pt-1 border-t border-emerald-500/10 flex items-center justify-between text-[10px] text-zinc-400">
+          <span className="flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Firebase Security Rule Enforced</span>
+          </span>
+          <span>Zero Secret Monitoring</span>
+        </div>
+      </div>
+
+      {/* MODALS */}
       <DailyCheckInModal
         isOpen={showCheckInModal}
         onClose={() => setShowCheckInModal(false)}
         initialTab={checkInModalInitialTab}
         onOpenCoachWithTopic={onOpenCoachWithTopic}
-        onCheckInCompleted={loadCheckIns}
       />
 
-      {/* Things Worth Talking About Modal */}
       <ConversationStartersModal
         isOpen={showConversationModal}
-        onClose={() => {
-          setShowConversationModal(false);
-          loadConversationStarters();
-        }}
-        initialTab={conversationModalInitialTab}
+        onClose={() => setShowConversationModal(false)}
         onOpenCoachWithTopic={onOpenCoachWithTopic}
       />
 
-      {/* Couple Goals & Shared Milestones Modal */}
       <CoupleGoalsModal
         isOpen={showGoalsModal}
         onClose={() => setShowGoalsModal(false)}
         initialMode={goalsModalInitialMode}
-        initialTab={goalsModalInitialTab}
       />
 
-      {/* ===================================================================== */}
-      {/* BIRTHDAY MESSAGE COMPOSER MODAL */}
-      {/* ===================================================================== */}
-      {showBirthdayComposer && (
+      {/* NOTIFICATIONS MODAL */}
+      {showNotificationsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-sm bg-[#121216] border border-white/10 rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🎂</span>
-                <div>
-                  <h3 className="text-sm font-bold text-white">
-                    Make their birthday special ❤️
-                  </h3>
-                  <p className="text-[11px] text-zinc-400">
-                    For {partnerProfile?.displayName || 'your partner'}
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => {
-                  setShowBirthdayComposer(false);
-                  setShowCoachInput(false);
-                }}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+          <div className="w-full max-w-sm bg-[#111116] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Bell className="w-4 h-4 text-rose-400" />
+                <span>Notifications</span>
+              </h3>
+              <button
+                onClick={() => setShowNotificationsModal(false)}
+                className="p-1 rounded-full text-zinc-400 hover:text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Coach Assistance Card */}
-            {showCoachInput ? (
-              <div className="p-3.5 rounded-2xl bg-indigo-950/30 border border-indigo-500/25 space-y-3 animate-fadeIn">
-                <div className="flex items-center gap-2 text-indigo-300">
-                  <Wand2 className="w-4 h-4 text-indigo-400" />
-                  <span className="text-xs font-semibold">TRUSTLY Coach Message Helper</span>
-                </div>
-                <p className="text-[11px] text-zinc-300">
-                  Share anything special you'd like to mention (e.g. your favorite quality or gratitude). Coach will craft warm words without making up facts.
-                </p>
-
-                <textarea
-                  rows={2}
-                  value={coachNotes}
-                  onChange={(e) => setCoachNotes(e.target.value)}
-                  placeholder="e.g. I appreciate how caring they are, and want them to feel loved..."
-                  className="w-full bg-zinc-950/80 border border-white/10 rounded-xl p-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 resize-none"
-                />
-
-                {/* Tone selection */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {(['heartfelt', 'playful', 'deeply_romantic', 'grateful'] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setSelectedTone(t)}
-                      className={`text-[10px] px-2 py-1 rounded-lg border capitalize transition-all cursor-pointer ${
-                        selectedTone === t 
-                          ? 'bg-indigo-500/25 border-indigo-500/50 text-indigo-200' 
-                          : 'bg-white/5 border-white/5 text-zinc-400'
-                      }`}
-                    >
-                      {t.replace('_', ' ')}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowCoachInput(false)}
-                    className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isGeneratingCoachMsg}
-                    onClick={handleGenerateCoachBirthdayMessage}
-                    className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  >
-                    {isGeneratingCoachMsg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                    <span>Generate Words</span>
-                  </button>
-                </div>
+            {notifications.length === 0 ? (
+              <div className="py-8 text-center text-xs text-zinc-400">
+                No notifications right now.
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCoachInput(false)}
-                  className="flex-1 py-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 text-xs font-medium hover:text-white transition-all cursor-pointer text-center"
-                >
-                  Write Myself
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCoachInput(true)}
-                  className="flex-1 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Get Help from Coach</span>
-                </button>
+              <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
+                {notifications.map((n) => (
+                  <div key={n.id} className="p-3 rounded-2xl bg-zinc-900 border border-white/5 text-xs space-y-1">
+                    <div className="font-semibold text-white">{n.title}</div>
+                    <div className="text-zinc-300 text-[11px]">{n.message}</div>
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* Message Textarea */}
-            <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                Your Birthday Message
-              </label>
-              <textarea
-                rows={5}
-                required
-                value={birthdayDraft}
-                onChange={(e) => setBirthdayDraft(e.target.value)}
-                placeholder="Write something from the heart..."
-                className="w-full bg-zinc-950/90 border border-white/10 rounded-2xl p-3.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-rose-500 resize-none leading-relaxed"
-              />
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBirthdayComposer(false);
-                  setShowCoachInput(false);
-                }}
-                className="px-4 py-2.5 rounded-xl bg-zinc-900 text-zinc-400 text-xs font-medium border border-white/5 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!birthdayDraft.trim()}
-                onClick={() => setShowBirthdayConfirm(true)}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-indigo-600 text-white text-xs font-semibold shadow-md disabled:opacity-50 flex items-center gap-1.5 cursor-pointer hover:opacity-95"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Send Birthday Message</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* BIRTHDAY MESSAGE CONFIRMATION MODAL */}
-      {/* ===================================================================== */}
-      {showBirthdayConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-sm bg-[#121216] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="text-center space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 mx-auto flex items-center justify-center text-xl">
-                💌
-              </div>
-              <h3 className="text-base font-bold text-white pt-1">
-                Send this birthday message to your partner?
-              </h3>
-              <p className="text-xs text-zinc-400">
-                It will be delivered immediately to {partnerProfile?.displayName || 'your partner'}.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-zinc-950/80 border border-white/10 text-xs text-zinc-200 whitespace-pre-wrap leading-relaxed shadow-inner">
-              "{birthdayDraft}"
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                disabled={isSendingBirthdayMsg}
-                onClick={() => setShowBirthdayConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl bg-zinc-900 text-zinc-300 text-xs font-semibold border border-white/5 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSendingBirthdayMsg}
-                onClick={handleConfirmSendBirthdayMessage}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-indigo-600 text-white text-xs font-semibold shadow-md flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-95"
-              >
-                {isSendingBirthdayMsg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                <span>Send</span>
-              </button>
-            </div>
           </div>
         </div>
       )}

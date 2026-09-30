@@ -28,6 +28,7 @@ interface AuthContextType {
   currentUser: FirebaseUser | null;
   userProfile: UserProfile | null;
   coupleSpace: CoupleSpace | null;
+  setCoupleSpace: React.Dispatch<React.SetStateAction<CoupleSpace | null>>;
   partnerProfile: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
@@ -38,7 +39,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   resendVerification: () => Promise<void>;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
-  createCouple: (spaceName: string, relationshipType?: string) => Promise<CoupleSpace>;
+  createCouple: (spaceName: string, relationshipType?: string, connectionType?: string) => Promise<CoupleSpace>;
   validateInviteCode: (code: string) => Promise<{ couple: CoupleSpace; creatorName: string }>;
   confirmJoinCouple: (coupleId: string) => Promise<CoupleSpace>;
   joinCouple: (inviteCode: string) => Promise<boolean>;
@@ -330,46 +331,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateUserProfile = async (data: Partial<UserProfile>) => {
-    if (!currentUser) return;
-    const ref = doc(db, 'users', currentUser.uid);
-    const updatedData = { ...data, updatedAt: new Date().toISOString() };
-    await setDoc(ref, updatedData, { merge: true });
-
-    // Sync Firebase Auth profile if displayName or photoURL changed
-    if (data.displayName || data.photoURL) {
-      try {
-        await updateProfile(currentUser, {
-          displayName: data.displayName ?? currentUser.displayName,
-          photoURL: data.photoURL ?? currentUser.photoURL
-        });
-      } catch (authErr) {
-        console.warn("Notice updating Auth profile:", authErr);
-      }
+    const activeUser = auth.currentUser || currentUser;
+    if (!activeUser) {
+      throw new Error("Your session expired. Please sign in again.");
     }
 
-    setUserProfile(prev => prev ? { ...prev, ...updatedData } : {
-      uid: currentUser.uid,
-      email: currentUser.email || '',
-      displayName: data.displayName || currentUser.displayName || 'User',
-      photoURL: data.photoURL || currentUser.photoURL || '',
-      relationshipStatus: data.relationshipStatus || 'Dating',
-      relationshipType: data.relationshipType || 'Dating',
-      coupleId: data.coupleId || null,
-      onboardingCompleted: true,
-      createdAt: new Date().toISOString(),
-      ...updatedData
+    const uid = activeUser.uid;
+    const path = `users/${uid}`;
+    const ref = doc(db, 'users', uid);
+    const updatedData = { ...data, updatedAt: new Date().toISOString() };
+
+    console.log("[Profile Update Trace]", {
+      uid,
+      path,
+      fieldsToUpdate: Object.keys(updatedData),
+      projectId: db.app.options.projectId
     });
+
+    try {
+      await setDoc(ref, updatedData, { merge: true });
+
+      // Sync Firebase Auth profile if displayName or photoURL changed
+      if (data.displayName || data.photoURL) {
+        try {
+          await updateProfile(activeUser, {
+            displayName: data.displayName ?? activeUser.displayName,
+            photoURL: data.photoURL ?? activeUser.photoURL
+          });
+        } catch (authErr) {
+          console.warn("[Profile Update Auth Sync Notice]", authErr);
+        }
+      }
+
+      setUserProfile(prev => prev ? { ...prev, ...updatedData } : {
+        uid,
+        email: activeUser.email || '',
+        displayName: data.displayName || activeUser.displayName || 'User',
+        photoURL: data.photoURL || activeUser.photoURL || '',
+        relationshipStatus: data.relationshipStatus || 'Dating',
+        relationshipType: data.relationshipType || 'Dating',
+        coupleId: data.coupleId || null,
+        onboardingCompleted: true,
+        createdAt: new Date().toISOString(),
+        ...updatedData
+      });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    }
   };
 
-  const createCouple = async (spaceName: string, relationshipType?: string): Promise<CoupleSpace> => {
-    if (!currentUser) throw new Error("Must be logged in to create a couple space.");
+  const createCouple = async (spaceName: string, relationshipType?: string, connectionType?: string): Promise<CoupleSpace> => {
+    if (!currentUser) throw new Error("Must be logged in to create a connection space.");
 
     const trimmedName = spaceName.trim();
     if (!trimmedName) {
-      throw new Error("Please give your couple space a name.");
+      throw new Error("Please give your connection space a name.");
     }
     if (trimmedName.length > 50) {
-      throw new Error("Couple space name should be 50 characters or fewer.");
+      throw new Error("Connection space name should be 50 characters or fewer.");
     }
 
     // Secure collision-resistant cryptographically strong code generation
@@ -407,17 +426,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const newCoupleRef = doc(collection(db, 'couples'));
-    const resolvedType = relationshipType || userProfile?.relationshipType || 'Dating';
+    const resolvedType = relationshipType || userProfile?.relationshipType || 'Partner';
+    const resolvedConnectionType = connectionType || userProfile?.connectionType || 'partner';
     const newCouple: CoupleSpace = {
       id: newCoupleRef.id,
       name: trimmedName,
       inviteCode,
       creatorId: currentUser.uid,
       createdBy: currentUser.uid,
-      creatorName: userProfile?.displayName || currentUser.displayName || 'Partner',
+      creatorName: userProfile?.displayName || currentUser.displayName || 'Connection',
       memberIds: [currentUser.uid],
       status: 'waiting',
       relationshipType: resolvedType,
+      connectionType: resolvedConnectionType,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -426,7 +447,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await updateUserProfile({ 
       coupleId: newCoupleRef.id, 
       relationshipStatus: resolvedType,
-      relationshipType: resolvedType
+      relationshipType: resolvedType,
+      connectionType: resolvedConnectionType
     });
     setCoupleSpace(newCouple);
     return newCouple;
@@ -570,6 +592,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentUser,
       userProfile,
       coupleSpace,
+      setCoupleSpace,
       partnerProfile,
       loading,
       isAdmin,

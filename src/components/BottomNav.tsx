@@ -4,12 +4,13 @@ import {
   ShieldCheck, 
   Sparkles, 
   User, 
-  Compass, 
-  Flame
+  Flame,
+  Users,
+  Lock
 } from 'lucide-react';
 
 interface BottomNavProps {
-  activeTab: 'home' | 'trust' | 'coach' | 'couple' | 'profile' | 'journal' | 'boundaries' | 'privacy' | 'admin' | 'subscription';
+  activeTab: 'home' | 'connections' | 'trust' | 'coach' | 'couple' | 'profile' | 'journal' | 'boundaries' | 'privacy' | 'admin' | 'subscription';
   setActiveTab: (tab: any) => void;
   hasUnreadNotes?: boolean;
 }
@@ -17,9 +18,9 @@ interface BottomNavProps {
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
   const tabs = [
     { id: 'home', label: 'Home', icon: Flame },
-    { id: 'trust', label: 'Trust', icon: ShieldCheck },
+    { id: 'connections', label: 'Connections', icon: Users },
     { id: 'coach', label: 'Coach', icon: Sparkles },
-    { id: 'couple', label: 'Couple', icon: Heart },
+    { id: 'privacy', label: 'Privacy', icon: Lock },
     { id: 'profile', label: 'Profile', icon: User },
   ];
 

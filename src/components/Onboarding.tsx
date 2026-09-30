@@ -79,11 +79,13 @@ export const Onboarding: React.FC<OnboardingFlowProps> = ({
 
   // Step 3 Options
   const relationshipOptions = [
-    { label: 'Dating', emoji: '❤️', desc: 'Exploring and discovering connection' },
-    { label: 'Engaged', emoji: '💍', desc: 'Preparing for lifetime commitment' },
-    { label: 'Married', emoji: '💑', desc: 'Deepening and honoring our bond' },
-    { label: 'Long-term relationship', emoji: '🌙', desc: 'Committed partners walking together' },
-    { label: 'Other', emoji: '✨', desc: 'Our unique and special dynamic' },
+    { type: 'partner', label: 'Partner / Lover', emoji: '❤️', desc: 'Romantic partner, spouse, or lover' },
+    { type: 'parent', label: 'Parent', emoji: '👨‍👩‍👦', desc: 'Mom, dad, or parental figure' },
+    { type: 'family', label: 'Family', emoji: '👨‍👩‍👧', desc: 'Sibling, relative, or child' },
+    { type: 'best_friend', label: 'Best Friend', emoji: '🧑‍🤝‍🧑', desc: 'Closest friend and confidant' },
+    { type: 'friend', label: 'Friend', emoji: '🤝', desc: 'Good friend or peer' },
+    { type: 'crush', label: 'Crush', emoji: '💭', desc: 'Someone you are interested in' },
+    { type: 'other', label: 'Other', emoji: '👥', desc: 'Any meaningful relationship' },
   ];
 
   const togglePurpose = (title: string) => {
@@ -399,18 +401,18 @@ export const Onboarding: React.FC<OnboardingFlowProps> = ({
         <div className="flex-1 flex flex-col justify-between animate-fadeIn z-10">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-1.5">
-              Tell us about your relationship.
+              Who would you like to connect with?
             </h1>
             <p className="text-xs sm:text-sm text-zinc-400 mb-6 leading-relaxed">
-              This helps us personalize your TRUSTLY experience.
+              TRUSTLY helps you build better communication with the people who matter.
             </p>
 
             <div className="space-y-3">
               {relationshipOptions.map((opt) => {
-                const isSelected = relationshipType === opt.label;
+                const isSelected = relationshipType === opt.label || relationshipType === opt.type;
                 return (
                   <button
-                    key={opt.label}
+                    key={opt.type}
                     onClick={() => setRelationshipType(opt.label)}
                     className={`w-full p-4 rounded-2xl text-left transition-all duration-200 flex items-center justify-between cursor-pointer border ${
                       isSelected
@@ -439,16 +441,15 @@ export const Onboarding: React.FC<OnboardingFlowProps> = ({
                 );
               })}
 
-              {/* Smaller "Prefer not to say" option */}
+              {/* Skip for now option */}
               <button
-                onClick={() => setRelationshipType('Private')}
-                className={`w-full py-3 px-4 rounded-xl text-center text-xs font-medium border transition-all cursor-pointer ${
-                  relationshipType === 'Private'
-                    ? 'bg-white/10 border-white/20 text-white'
-                    : 'bg-transparent border-transparent text-zinc-400 hover:text-zinc-200'
-                }`}
+                onClick={() => {
+                  setRelationshipType('Connection');
+                  handleNextFromStep3();
+                }}
+                className="w-full py-3 px-4 rounded-xl text-center text-xs font-medium border border-transparent text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
               >
-                Prefer not to say
+                Skip for now
               </button>
             </div>
           </div>
@@ -548,42 +549,42 @@ export const Onboarding: React.FC<OnboardingFlowProps> = ({
 
             <div className="space-y-4">
               
-              {/* Card 1: Create a Couple Space */}
+              {/* Card 1: Create a Connection Space */}
               <div className="p-5 sm:p-6 rounded-3xl bg-zinc-900/70 border border-white/10 hover:border-rose-500/40 transition-all shadow-xl group">
                 <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-3">
                   <Sparkles className="w-5 h-5" />
                 </div>
-                <h2 className="text-base font-bold text-white mb-1 group-hover:text-rose-300 transition-colors">
-                  CREATE A COUPLE SPACE
+                <h2 className="text-base font-bold text-white mb-1 group-hover:text-rose-300 transition-colors uppercase tracking-wider">
+                  CREATE A CONNECTION
                 </h2>
                 <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-                  Start a new private space and invite your partner.
+                  Start a private space and invite the person you want to connect with.
                 </p>
                 <button
                   onClick={handleProceedToCreate}
                   className="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-500 to-rose-600 hover:opacity-95 text-white font-semibold text-xs shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
                 >
-                  <span>Create Space</span>
+                  <span>Create Connection</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Card 2: Join a Couple Space */}
+              {/* Card 2: Join a Connection Space */}
               <div className="p-5 sm:p-6 rounded-3xl bg-zinc-900/70 border border-white/10 hover:border-violet-500/40 transition-all shadow-xl group">
                 <div className="w-10 h-10 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center mb-3">
                   <Users className="w-5 h-5" />
                 </div>
-                <h2 className="text-base font-bold text-white mb-1 group-hover:text-violet-300 transition-colors">
-                  JOIN A COUPLE SPACE
+                <h2 className="text-base font-bold text-white mb-1 group-hover:text-violet-300 transition-colors uppercase tracking-wider">
+                  JOIN A CONNECTION
                 </h2>
                 <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-                  Have an invitation code from your partner?
+                  Have an invitation code? Enter it to link your connection.
                 </p>
                 <button
                   onClick={handleProceedToJoin}
                   className="w-full py-3.5 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-200 hover:text-white font-semibold text-xs border border-white/10 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
                 >
-                  <span>Join with Code</span>
+                  <span>Join Connection</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>

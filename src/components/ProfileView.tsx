@@ -115,7 +115,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       }, 1200);
     } catch (err: any) {
       console.error("Profile update error:", err);
-      setProfileError("Could not update profile. Please check your connection and try again.");
+      const friendlyMsg = err instanceof Error ? err.message : "Couldn't save your changes. Please try again.";
+      setProfileError(friendlyMsg);
     } finally {
       setSaving(false);
     }

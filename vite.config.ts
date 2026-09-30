@@ -15,9 +15,14 @@ export default defineConfig(() => {
           'favicon.svg',
           'favicon.png',
           'apple-touch-icon.png',
+          'pwa-96x96.png',
+          'pwa-128x128.png',
+          'pwa-180x180.png',
           'pwa-192x192.png',
           'pwa-512x512.png',
-          'pwa-maskable-512x512.png'
+          'pwa-maskable-512x512.png',
+          'screenshot-narrow.png',
+          'screenshot-wide.png'
         ],
         manifest: false, // Use public/manifest.json for strict full-featured manifest control
         workbox: {

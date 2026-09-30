@@ -19,8 +19,8 @@ export const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use custom databaseId if specified in env, otherwise default
-const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || undefined;
+// Use custom databaseId if specified in env, otherwise fallbackStarterConfig.firestoreDatabaseId
+const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || fallbackStarterConfig.firestoreDatabaseId;
 
 export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -77,11 +77,28 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errCode = (error as any)?.code || '';
   const rawMsg = error instanceof Error ? error.message : String(error);
-  if (rawMsg.includes('permission-denied') || rawMsg.includes('insufficient permissions')) {
-    throw new Error("You don't have permission to access this.");
+
+  console.error('[Firestore Error Diagnostic]', {
+    operationType,
+    path,
+    code: errCode,
+    message: rawMsg,
+    uid: auth.currentUser?.uid || null,
+    email: auth.currentUser?.email || null
+  });
+
+  if (errCode === 'permission-denied' || rawMsg.includes('permission-denied') || rawMsg.includes('insufficient permissions')) {
+    throw new Error("You don't have permission to update this profile.");
   }
-  throw new Error("Something went wrong. Please try again.");
+  if (errCode === 'unauthenticated' || rawMsg.includes('unauthenticated')) {
+    throw new Error("Your session expired. Please sign in again.");
+  }
+  if (errCode === 'unavailable' || rawMsg.includes('offline') || rawMsg.includes('network')) {
+    throw new Error("Couldn't save your changes. Please check your network connection.");
+  }
+  throw new Error("Couldn't save your changes. Please try again.");
 }
 
 // Connection test
