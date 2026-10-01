@@ -1,3 +1,5 @@
+import { CONNECTION_IMAGES } from '../config/images';
+
 export type ConnectionType = 
   | 'partner'
   | 'parent'
@@ -10,19 +12,20 @@ export type ConnectionType =
 export interface ConnectionTypeOption {
   type: ConnectionType;
   label: string;
-  emoji: string;
+  emoji?: string;
+  iconName?: string;
   description: string;
   image?: string;
 }
 
 export const CONNECTION_TYPE_OPTIONS: ConnectionTypeOption[] = [
-  { type: 'partner', label: 'Partner / Lover', emoji: '❤️', description: 'Romantic partner, spouse, or lover', image: '/src/assets/images/partner_card_1790841232180.jpg' },
-  { type: 'parent', label: 'Parent', emoji: '👨‍👩‍👦', description: 'Mom, dad, or parental figure', image: '/src/assets/images/parent_card_1790841247252.jpg' },
-  { type: 'family', label: 'Family Member', emoji: '👨‍👩‍👧', description: 'Sibling, relative, or child', image: '/src/assets/images/family_card_1790841263241.jpg' },
-  { type: 'best_friend', label: 'Best Friend', emoji: '🧑‍🤝‍🧑', description: 'Closest friend and confidant', image: '/src/assets/images/best_friend_card_1790841276366.jpg' },
-  { type: 'friend', label: 'Friend', emoji: '🤝', description: 'Good friend or peer', image: '/src/assets/images/friend_card_1790841293395.jpg' },
-  { type: 'crush', label: 'Crush', emoji: '💭', description: 'Someone you are interested in', image: '/src/assets/images/crush_card_1790841309809.jpg' },
-  { type: 'other', label: 'Other', emoji: '👥', description: 'Any meaningful relationship', image: '/src/assets/images/other_card_1790841326419.jpg' },
+  { type: 'partner', label: 'Partner / Lover', description: 'Romantic partner, spouse, or lover', image: CONNECTION_IMAGES.partner },
+  { type: 'parent', label: 'Parent', description: 'Mom, dad, or parental figure', image: CONNECTION_IMAGES.parent },
+  { type: 'family', label: 'Family Member', description: 'Sibling, relative, or child', image: CONNECTION_IMAGES.family },
+  { type: 'best_friend', label: 'Best Friend', description: 'Closest friend and confidant', image: CONNECTION_IMAGES.best_friend },
+  { type: 'friend', label: 'Friend', description: 'Good friend or peer', image: CONNECTION_IMAGES.friend },
+  { type: 'crush', label: 'Crush', description: 'Someone you are interested in', image: CONNECTION_IMAGES.crush },
+  { type: 'other', label: 'Other', description: 'Any meaningful relationship', image: CONNECTION_IMAGES.other },
 ];
 
 export interface UserSubscription {
@@ -90,12 +93,32 @@ export interface CoupleSpace {
   createdBy?: string;
   creatorName?: string;
   memberIds: string[];
-  status: 'waiting' | 'connected' | 'active' | 'disconnected';
+  status: 'waiting' | 'connected' | 'active' | 'disconnected' | 'archived';
   relationshipType?: string;
   connectionType?: ConnectionType | string;
   anniversary?: string;
+  archivedBy?: string[];
+  customNames?: Record<string, string>;
+  customRelationshipTypes?: Record<string, string>;
+  lastActivityAt?: string;
+  lastActivityDesc?: string;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface ConnectionItem {
+  id: string;
+  space: CoupleSpace;
+  partner: UserProfile | null;
+  partnerId?: string;
+  displayName: string;
+  relationshipType: string;
+  rawConnectionType: string;
+  status: 'waiting' | 'connected' | 'archived';
+  isArchived: boolean;
+  lastActivityAt?: string | null;
+  lastActivityDesc?: string | null;
+  createdAt: string;
 }
 
 export type RelationshipFeeling = 

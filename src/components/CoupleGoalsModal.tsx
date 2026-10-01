@@ -41,14 +41,14 @@ interface CoupleGoalsModalProps {
 }
 
 const CATEGORIES: { name: CoupleGoalCategory; icon: string; desc: string }[] = [
-  { name: 'Quality Time', icon: '❤️', desc: 'Date nights, phone-free time, and dedicated presence' },
-  { name: 'Communication', icon: '💬', desc: 'Active listening, weekly check-ins, and openness' },
-  { name: 'Health & Wellness', icon: '🌱', desc: 'Daily walks, healthy habits, and physical wellness' },
-  { name: 'Travel', icon: '✈️', desc: 'Weekend getaways, dream trips, and exploring new places' },
-  { name: 'Finance', icon: '💰', desc: 'Saving together, budgeting, or shared investments' },
-  { name: 'Personal Growth', icon: '📚', desc: 'Reading, learning new skills, or spiritual growth' },
-  { name: 'Future Plans', icon: '🎯', desc: 'Home, career milestones, or shared life steps' },
-  { name: 'Something Else', icon: '✨', desc: 'Any other meaningful aspiration for the two of you' },
+  { name: 'Quality Time', icon: '', desc: 'Dedicated time, focus, and intentional presence' },
+  { name: 'Communication', icon: '', desc: 'Active listening, regular check-ins, and openness' },
+  { name: 'Health & Wellness', icon: '', desc: 'Daily walks, healthy habits, and physical wellness' },
+  { name: 'Travel', icon: '', desc: 'Getaways, trips, and exploring new places together' },
+  { name: 'Finance', icon: '', desc: 'Saving together, budgeting, or shared investments' },
+  { name: 'Personal Growth', icon: '', desc: 'Reading, learning new skills, or spiritual growth' },
+  { name: 'Future Plans', icon: '', desc: 'Shared milestones and meaningful life steps' },
+  { name: 'Something Else', icon: '', desc: 'Any other meaningful aspiration together' },
 ];
 
 export const CoupleGoalsModal: React.FC<CoupleGoalsModalProps> = ({

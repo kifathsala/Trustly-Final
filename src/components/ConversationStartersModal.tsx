@@ -35,7 +35,13 @@ import {
   Edit3, 
   RefreshCw, 
   AlertTriangle, 
-  PhoneCall 
+  PhoneCall,
+  Clock,
+  Heart,
+  CreditCard,
+  Users,
+  Target,
+  HelpCircle
 } from 'lucide-react';
 
 interface ConversationStartersModalProps {
@@ -45,16 +51,16 @@ interface ConversationStartersModalProps {
   initialTab?: 'create' | 'history';
 }
 
-const CATEGORIES: { name: ConversationTopicCategory; icon: string; desc: string }[] = [
-  { name: 'Communication', icon: '💬', desc: 'Tone, listening, or how we speak to each other' },
-  { name: 'Quality Time', icon: '⏳', desc: 'Distractions, date nights, or busy schedules' },
-  { name: 'Affection', icon: '🫂', desc: 'Physical warmth, tenderness, or emotional closeness' },
-  { name: 'Trust', icon: '🛡️', desc: 'Transparency, reassurance, or agreements' },
-  { name: 'Money', icon: '💳', desc: 'Spending, saving, or shared financial goals' },
-  { name: 'Family', icon: '🏡', desc: 'In-laws, boundaries, or holiday commitments' },
-  { name: 'Future', icon: '🌱', desc: 'Shared vision, life milestones, or next steps' },
-  { name: 'Personal Feelings', icon: '💭', desc: 'Vulnerability, individual stress, or inner mood' },
-  { name: 'Something Else', icon: '✨', desc: 'Any other dynamic you would like to explore' },
+const CATEGORIES: { name: ConversationTopicCategory; icon: React.ComponentType<{ className?: string }>; desc: string }[] = [
+  { name: 'Communication', icon: MessageSquare, desc: 'Tone, listening, or how we speak to each other' },
+  { name: 'Quality Time', icon: Clock, desc: 'Distractions, busy schedules, or dedicated time' },
+  { name: 'Affection', icon: Heart, desc: 'Warmth, tenderness, or emotional closeness' },
+  { name: 'Trust', icon: ShieldCheck, desc: 'Transparency, reassurance, or agreements' },
+  { name: 'Money', icon: CreditCard, desc: 'Spending, saving, or shared financial goals' },
+  { name: 'Family', icon: Users, desc: 'Boundaries, family dynamics, or commitments' },
+  { name: 'Future', icon: Target, desc: 'Shared vision, life milestones, or next steps' },
+  { name: 'Personal Feelings', icon: Sparkles, desc: 'Vulnerability, individual stress, or inner mood' },
+  { name: 'Something Else', icon: HelpCircle, desc: 'Any other dynamic you would like to explore' },
 ];
 
 export const ConversationStartersModal: React.FC<ConversationStartersModalProps> = ({
@@ -391,6 +397,7 @@ export const ConversationStartersModal: React.FC<ConversationStartersModalProps>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                     {CATEGORIES.map((cat) => {
                       const isSelected = selectedCategory === cat.name;
+                      const Icon = cat.icon;
                       return (
                         <button
                           type="button"
@@ -398,14 +405,16 @@ export const ConversationStartersModal: React.FC<ConversationStartersModalProps>
                           onClick={() => setSelectedCategory(cat.name)}
                           className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                             isSelected
-                              ? 'bg-rose-500/15 border-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.15)] ring-1 ring-rose-500/40'
+                              ? 'bg-violet-500/15 border-violet-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.15)] ring-1 ring-violet-500/40'
                               : 'bg-zinc-900/60 border-white/5 hover:border-white/15 text-zinc-300'
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xl">{cat.icon}</span>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-violet-400">
+                              <Icon className="w-4 h-4" />
+                            </div>
                             <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                              isSelected ? 'bg-rose-500 border-rose-400 text-white' : 'border-zinc-700'
+                              isSelected ? 'bg-violet-500 border-violet-400 text-white' : 'border-zinc-700'
                             }`}>
                               {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                             </div>

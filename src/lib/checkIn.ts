@@ -2,13 +2,16 @@
  * Connection Check-In & Pulse System Helpers
  * Factual, privacy-respecting, and connection-aware.
  * Strictly no numerical relationship scores, no hidden emotion guessing.
+ * Uses high-quality human expression imagery, zero emoji characters.
  */
 
 import { ConnectionFeeling, CheckInArea, SharedConnectionCheckIn } from '../types';
+import { REACTION_IMAGES, getReactionImage } from '../config/images';
 
 export interface FeelingOption {
   label: string;
-  emoji: string;
+  emoji?: string; // Optional for backwards compatibility, not displayed in UI
+  image: string;
   desc: string;
   badgeBg: string;
   badgeBorder: string;
@@ -18,7 +21,7 @@ export interface FeelingOption {
 export const FEELING_OPTIONS: FeelingOption[] = [
   { 
     label: 'Appreciated', 
-    emoji: '❤️', 
+    image: REACTION_IMAGES.appreciated,
     desc: 'Feeling valued, seen, and cared for',
     badgeBg: 'bg-rose-500/15',
     badgeBorder: 'border-rose-500/30',
@@ -26,7 +29,7 @@ export const FEELING_OPTIONS: FeelingOption[] = [
   },
   { 
     label: 'Connected', 
-    emoji: '😊', 
+    image: REACTION_IMAGES.connected,
     desc: 'In tune, close, and emotionally aligned',
     badgeBg: 'bg-violet-500/15',
     badgeBorder: 'border-violet-500/30',
@@ -34,7 +37,7 @@ export const FEELING_OPTIONS: FeelingOption[] = [
   },
   { 
     label: 'Good', 
-    emoji: '🙂', 
+    image: REACTION_IMAGES.good,
     desc: 'Comfortable, positive, and steady',
     badgeBg: 'bg-emerald-500/15',
     badgeBorder: 'border-emerald-500/30',
@@ -42,7 +45,7 @@ export const FEELING_OPTIONS: FeelingOption[] = [
   },
   { 
     label: 'Neutral', 
-    emoji: '😐', 
+    image: REACTION_IMAGES.neutral,
     desc: 'Day-to-day routine, neither high nor low',
     badgeBg: 'bg-zinc-800',
     badgeBorder: 'border-zinc-700',
@@ -50,7 +53,7 @@ export const FEELING_OPTIONS: FeelingOption[] = [
   },
   { 
     label: 'Distant', 
-    emoji: '😔', 
+    image: REACTION_IMAGES.distant,
     desc: 'Feeling some physical or emotional space',
     badgeBg: 'bg-blue-500/15',
     badgeBorder: 'border-blue-500/30',
@@ -58,7 +61,7 @@ export const FEELING_OPTIONS: FeelingOption[] = [
   },
   { 
     label: 'Worried', 
-    emoji: '😟', 
+    image: REACTION_IMAGES.worried,
     desc: 'Concerned about something on your mind',
     badgeBg: 'bg-amber-500/15',
     badgeBorder: 'border-amber-500/30',
@@ -66,7 +69,7 @@ export const FEELING_OPTIONS: FeelingOption[] = [
   },
   { 
     label: 'Frustrated', 
-    emoji: '😤', 
+    image: REACTION_IMAGES.frustrated,
     desc: 'Encountering friction or misunderstandings',
     badgeBg: 'bg-orange-500/15',
     badgeBorder: 'border-orange-500/30',
@@ -74,7 +77,7 @@ export const FEELING_OPTIONS: FeelingOption[] = [
   },
   { 
     label: 'Unsure', 
-    emoji: '💭', 
+    image: REACTION_IMAGES.unsure,
     desc: 'Processing thoughts or mixed feelings',
     badgeBg: 'bg-indigo-500/15',
     badgeBorder: 'border-indigo-500/30',
@@ -99,14 +102,20 @@ export function getFeelingDetails(labelOrEmoji?: string): FeelingOption {
   const lower = labelOrEmoji.toLowerCase().trim();
   const matched = FEELING_OPTIONS.find(f => 
     f.label.toLowerCase() === lower || 
-    f.emoji === labelOrEmoji.trim() ||
-    (lower.includes('connected') && f.label === 'Connected') ||
+    (lower.includes('appreciat') && f.label === 'Appreciated') ||
+    (lower.includes('connect') && f.label === 'Connected') ||
     (lower.includes('good') && f.label === 'Good') ||
-    (lower.includes('okay') && f.label === 'Neutral') ||
+    ((lower.includes('neutral') || lower.includes('okay')) && f.label === 'Neutral') ||
     (lower.includes('distant') && f.label === 'Distant') ||
-    (lower.includes('mind') && f.label === 'Unsure')
+    (lower.includes('worr') && f.label === 'Worried') ||
+    (lower.includes('frustrat') && f.label === 'Frustrated') ||
+    ((lower.includes('unsure') || lower.includes('mind')) && f.label === 'Unsure')
   );
-  return matched || FEELING_OPTIONS[1];
+  return matched || {
+    ...FEELING_OPTIONS[1],
+    label: labelOrEmoji,
+    image: getReactionImage(labelOrEmoji)
+  };
 }
 
 export function getConnectionCheckInCopy(connectionType?: string) {
@@ -273,7 +282,7 @@ export function computeFactualConnectionPulse(
     else relative = latestDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
 
-  const latestFeelingDetails = getFeelingDetails(latest.feeling || latest.feelingEmoji);
+  const latestFeelingDetails = getFeelingDetails(latest.feeling);
   const isMine = latest.createdBy === currentUserId || latest.userId === currentUserId;
   const latestSharedBy = isMine ? 'You' : (latest.creatorName || partnerName);
 

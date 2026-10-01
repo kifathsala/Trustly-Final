@@ -36,7 +36,7 @@ import {
   CalendarHeart,
   StickyNote
 } from 'lucide-react';
-import { getConnectionLabel, getConnectionEmoji } from '../lib/connection';
+import { getConnectionLabel } from '../lib/connection';
 
 interface NotificationCenterProps {
   onNavigateTab: (tab: any) => void;

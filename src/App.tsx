@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext';
+import { ActiveConnectionProvider } from './context/ActiveConnectionContext';
 import { LandingPage } from './components/LandingPage';
 import { Onboarding } from './components/Onboarding';
 import { AuthModal } from './components/AuthModal';
@@ -25,6 +26,7 @@ import { PricingModal } from './components/PricingModal';
 import { UpgradeModal } from './components/UpgradeModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { NotificationCenter } from './components/NotificationCenter';
+import { Users, ShieldCheck } from 'lucide-react';
 
 function MainApp() {
   const { currentUser, userProfile, loading, updateUserProfile } = useAuth();
@@ -42,8 +44,8 @@ function MainApp() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#070709] flex flex-col items-center justify-center text-white">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 via-purple-600 to-indigo-600 flex items-center justify-center animate-pulse mb-3 shadow-lg shadow-rose-500/20">
-          <span className="text-xl">❤️</span>
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-600 to-pink-600 flex items-center justify-center animate-pulse mb-3 shadow-lg shadow-violet-500/20">
+          <Users className="w-6 h-6 text-white" />
         </div>
         <p className="text-xs text-zinc-400 font-medium tracking-wider uppercase">Loading TRUSTLY...</p>
       </div>
@@ -146,8 +148,8 @@ function MainApp() {
         {/* Global Premium Header Bar */}
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-violet-600 flex items-center justify-center text-sm shadow-md shadow-rose-500/10">
-              ❤️
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-violet-600 to-pink-600 flex items-center justify-center text-sm shadow-md shadow-violet-500/10">
+              <ShieldCheck className="w-4.5 h-4.5 text-white" />
             </div>
             <div>
               <span className="font-extrabold text-sm tracking-widest text-white uppercase">
@@ -187,6 +189,7 @@ function MainApp() {
               setPairingInitialMode(mode);
               setShowPairingFlow(true);
             }}
+            onOpenPrivacy={() => setActiveTab('privacy')}
           />
         )}
 
@@ -247,9 +250,11 @@ function MainApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <SubscriptionProvider>
-        <MainApp />
-      </SubscriptionProvider>
+      <ActiveConnectionProvider>
+        <SubscriptionProvider>
+          <MainApp />
+        </SubscriptionProvider>
+      </ActiveConnectionProvider>
     </AuthProvider>
   );
 }

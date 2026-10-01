@@ -39,15 +39,15 @@ import { sendNotification } from '../lib/notifications';
 import { getConnectionLabel } from '../lib/connection';
 
 const BOUNDARY_CATEGORIES: { name: BoundaryCategory; label: string; icon: string; badgeClass: string }[] = [
-  { name: 'Communication', label: 'Communication', icon: '💬', badgeClass: 'bg-blue-500/15 text-blue-300 border-blue-500/25' },
-  { name: 'Privacy', label: 'Privacy', icon: '🔒', badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/25' },
-  { name: 'Time', label: 'Time', icon: '⏳', badgeClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25' },
-  { name: 'Personal Space', label: 'Personal Space', icon: '🧘', badgeClass: 'bg-teal-500/15 text-teal-300 border-teal-500/25' },
-  { name: 'Family', label: 'Family', icon: '🏡', badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/25' },
-  { name: 'Social Media', label: 'Social Media', icon: '📱', badgeClass: 'bg-pink-500/15 text-pink-300 border-pink-500/25' },
-  { name: 'Money', label: 'Money', icon: '💰', badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' },
-  { name: 'Plans', label: 'Plans', icon: '🗺️', badgeClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25' },
-  { name: 'Other', label: 'Other', icon: '🤝', badgeClass: 'bg-zinc-800 text-zinc-300 border-white/10' },
+  { name: 'Communication', label: 'Communication', icon: '', badgeClass: 'bg-blue-500/15 text-blue-300 border-blue-500/25' },
+  { name: 'Privacy', label: 'Privacy', icon: '', badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/25' },
+  { name: 'Time', label: 'Time', icon: '', badgeClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25' },
+  { name: 'Personal Space', label: 'Personal Space', icon: '', badgeClass: 'bg-teal-500/15 text-teal-300 border-teal-500/25' },
+  { name: 'Family', label: 'Family', icon: '', badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/25' },
+  { name: 'Social Media', label: 'Social Media', icon: '', badgeClass: 'bg-pink-500/15 text-pink-300 border-pink-500/25' },
+  { name: 'Money', label: 'Money', icon: '', badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' },
+  { name: 'Plans', label: 'Plans', icon: '', badgeClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25' },
+  { name: 'Other', label: 'Other', icon: '', badgeClass: 'bg-zinc-800 text-zinc-300 border-white/10' },
 ];
 
 function getCategoryInfo(catName?: string) {

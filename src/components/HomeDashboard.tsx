@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useSubscription } from '../context/SubscriptionContext';
+import { useActiveConnection } from '../context/ActiveConnectionContext';
 import { 
   collection, 
-  doc, 
-  getDoc,
   getDocs, 
   query, 
   where, 
@@ -20,40 +18,42 @@ import {
   CoupleGoal, 
   SharedMemory,
   ImportantDate,
-  BirthdayMessage,
   CoupleSpace,
   UserProfile,
+  ConnectionItem,
   CONNECTION_TYPE_OPTIONS 
 } from '../types';
 import { DailyCheckInModal } from './DailyCheckInModal';
 import { ConversationStartersModal } from './ConversationStartersModal';
 import { CoupleGoalsModal } from './CoupleGoalsModal';
 import { ConnectionSwitcher } from './ConnectionSwitcher';
-import { isBirthdayToday } from '../lib/birthday';
-import { generateBirthdayMessageCoach } from '../lib/gemini';
-import { calculateDateDetails, getDateTypeDetails } from '../lib/dates';
+import { InitialsAvatar } from './InitialsAvatar';
+import { calculateDateDetails } from '../lib/dates';
 import { 
-  Heart, 
-  Sparkles, 
-  ShieldCheck, 
-  Activity, 
-  CheckCircle2, 
-  Lock, 
-  ArrowRight, 
-  MessageSquare, 
   Users, 
+  Plus, 
+  Search, 
+  X, 
+  Activity, 
+  MessageSquare, 
+  Target, 
+  Calendar, 
+  Camera, 
+  StickyNote, 
+  Lock, 
+  ShieldCheck, 
+  CheckCircle2, 
+  Clock, 
+  Sparkles, 
   Bell, 
-  X,
-  Target,
-  Plus,
-  Loader2,
-  Check,
-  ChevronRight,
-  Clock,
-  Calendar,
-  Camera,
-  Layers,
-  Zap
+  ArrowRight, 
+  ChevronRight, 
+  Loader2, 
+  BookOpen, 
+  SlidersHorizontal,
+  ExternalLink,
+  ShieldAlert,
+  AlertCircle
 } from 'lucide-react';
 
 interface HomeDashboardProps {
@@ -62,41 +62,22 @@ interface HomeDashboardProps {
   onOpenCoachWithTopic?: (topic: string) => void;
 }
 
-interface AppNotification {
+interface SharedActivityItem {
   id: string;
+  connectionId: string;
+  connectionName: string;
+  relationshipType: string;
+  type: 'memory' | 'goal' | 'date' | 'checkin' | 'note';
   title: string;
-  message: string;
-  createdAt?: string;
-  read?: boolean;
+  timestamp: string;
 }
 
-interface UserConnectionData {
-  space: CoupleSpace;
-  partner: UserProfile | null;
-}
-
-interface ActivityItem {
+interface SearchResultItem {
   id: string;
-  type: 'memory' | 'goal' | 'date' | 'checkin' | 'conversation';
+  type: 'connection' | 'memory' | 'goal' | 'date' | 'note' | 'checkin';
   title: string;
   subtitle: string;
-  dateStr: string;
-  icon: string;
-  space: CoupleSpace;
-}
-
-interface UpcomingDateItem {
-  id: string;
-  title: string;
-  type: string;
-  emoji: string;
-  connectionContext: string;
-  countdownText: string;
-  formattedDate: string;
-  diffDays: number;
-  isToday: boolean;
-  isTomorrow: boolean;
-  space: CoupleSpace;
+  connectionId?: string;
 }
 
 export const HomeDashboard: React.FC<HomeDashboardProps> = ({ 
@@ -104,837 +85,979 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onOpenPairing, 
   onOpenCoachWithTopic 
 }) => {
-  const { currentUser, userProfile, partnerProfile, coupleSpace, setCoupleSpace } = useAuth();
-  const { isPlus } = useSubscription();
+  const { currentUser, userProfile } = useAuth();
+  const { 
+    connections, 
+    activeConnections, 
+    activeConnection, 
+    activeConnectionId, 
+    setActiveConnectionId, 
+    loading: connectionsLoading 
+  } = useActiveConnection();
 
-  // Loading states
-  const [loadingData, setLoadingData] = useState<boolean>(true);
-  const [userConnections, setUserConnections] = useState<UserConnectionData[]>([]);
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Check-in states
-  const [todayCheckedIn, setTodayCheckedIn] = useState<boolean>(false);
-  const [todayUserCheckIn, setTodayUserCheckIn] = useState<UserCheckIn | null>(null);
-  const [partnerSharedSummary, setPartnerSharedSummary] = useState<SharedCheckInSummary | null>(null);
-  const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
-  const [checkInModalInitialTab, setCheckInModalInitialTab] = useState<'checkin' | 'history'>('checkin');
+  // Connection Filter on Home
+  const [connectionFilter, setConnectionFilter] = useState<string>('all');
 
-  // Conversation Starters state
-  const [showConversationModal, setShowConversationModal] = useState<boolean>(false);
-  const [partnerSharedConversation, setPartnerSharedConversation] = useState<SharedConversationStarter | null>(null);
+  // Modals
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [checkInInitialTab, setCheckInInitialTab] = useState<'checkin' | 'history'>('checkin');
+  const [showConversationModal, setShowConversationModal] = useState(false);
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
+  const [goalsInitialMode, setGoalsInitialMode] = useState<'list' | 'create'>('list');
 
-  // Goals state
-  const [showGoalsModal, setShowGoalsModal] = useState<boolean>(false);
-  const [goalsModalInitialMode, setGoalsModalInitialMode] = useState<'list' | 'create'>('list');
+  // Factual Private Space Counts
+  const [privateCheckInCount, setPrivateCheckInCount] = useState<number>(0);
+  const [privateJournalCount, setPrivateJournalCount] = useState<number>(0);
+  const [privateBoundariesCount, setPrivateBoundariesCount] = useState<number>(0);
+  const [aiCoachConversationsCount, setAiCoachConversationsCount] = useState<number>(0);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState<number>(0);
 
-  // Notifications state
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
+  // Factual Connection Metrics & Shared Activity
+  const [connectionMetrics, setConnectionMetrics] = useState<Record<string, { memories: number; goals: number; checkIns: number; dates: number }>>({});
+  const [recentSharedActivities, setRecentSharedActivities] = useState<SharedActivityItem[]>([]);
+  const [upcomingDates, setUpcomingDates] = useState<Array<{ id: string; title: string; diffDays: number; connectionName: string; formattedDate: string; isToday: boolean }>>([]);
+  const [pendingInvites, setPendingInvites] = useState<ConnectionItem[]>([]);
 
-  // Birthday state
-  const isUserBirthday = isBirthdayToday(userProfile?.dateOfBirth || userProfile?.birthday);
-  const isPartnerBirthday = Boolean(
-    partnerProfile?.shareBirthday && 
-    isBirthdayToday(partnerProfile?.dateOfBirth || partnerProfile?.birthday)
-  );
-  const [receivedBirthdayMessages, setReceivedBirthdayMessages] = useState<BirthdayMessage[]>([]);
-  const [showBirthdayComposer, setShowBirthdayComposer] = useState<boolean>(false);
-  const [birthdayDraft, setBirthdayDraft] = useState<string>('');
-  const [coachNotes, setCoachNotes] = useState<string>('');
-  const [selectedTone, setSelectedTone] = useState<'heartfelt' | 'playful' | 'deeply_romantic' | 'grateful'>('heartfelt');
-  const [isGeneratingCoachMsg, setIsGeneratingCoachMsg] = useState<boolean>(false);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
 
-  // Recent Activity Feed state
-  const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
-  const [upcomingDates, setUpcomingDates] = useState<UpcomingDateItem[]>([]);
-
-  const todayDateStr = new Date().toISOString().split('T')[0];
-
+  // 1. Fetch Private Counts for the Authenticated User (STRICT OWNER ISOLATION)
   useEffect(() => {
-    if (!userProfile || !currentUser) return;
-    loadDashboardData();
-  }, [userProfile?.uid, partnerProfile?.uid, coupleSpace?.id]);
+    if (!currentUser?.uid) return;
 
-  const getGreetingByTime = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
+    const fetchPrivateCounts = async () => {
+      try {
+        // A. Private check-ins
+        const checkInsSnap = await getDocs(
+          query(collection(db, 'users', currentUser.uid, 'checkIns'), limit(50))
+        ).catch(() => null);
+        if (checkInsSnap) {
+          setPrivateCheckInCount(checkInsSnap.size);
+        }
 
-  const loadDashboardData = async () => {
-    if (!currentUser) return;
-    setLoadingData(true);
-    try {
-      // 1. Fetch user's connections
-      const qConn = query(collection(db, 'couples'), where('memberIds', 'array-contains', currentUser.uid));
-      const connSnap = await getDocs(qConn);
-      const connList: UserConnectionData[] = [];
+        // B. Private Journal Entries
+        const journalSnap = await getDocs(
+          query(collection(db, 'journalEntries'), where('userId', '==', currentUser.uid), limit(50))
+        ).catch(() => null);
+        if (journalSnap) {
+          setPrivateJournalCount(journalSnap.size);
+        }
 
-      for (const spaceDoc of connSnap.docs) {
-        const space = { id: spaceDoc.id, ...spaceDoc.data() } as CoupleSpace;
-        const partnerId = space.memberIds?.find(id => id !== currentUser.uid);
-        let partnerData: UserProfile | null = null;
+        // C. AI Coach Conversations
+        const aiSnap = await getDocs(
+          query(collection(db, 'users', currentUser.uid, 'aiConversations'), limit(50))
+        ).catch(() => null);
+        if (aiSnap) {
+          setAiCoachConversationsCount(aiSnap.size);
+        }
 
-        if (partnerId) {
+        // D. Boundaries
+        const boundariesSnap = await getDocs(
+          query(collection(db, 'boundaries'), where('createdBy', '==', currentUser.uid), limit(50))
+        ).catch(() => null);
+        if (boundariesSnap) {
+          setPrivateBoundariesCount(boundariesSnap.size);
+        }
+
+        // E. Notifications Unread
+        const notifSnap = await getDocs(
+          query(collection(db, 'users', currentUser.uid, 'notifications'), where('isRead', '==', false), limit(20))
+        ).catch(() => null);
+        if (notifSnap) {
+          setUnreadNotificationCount(notifSnap.size);
+        }
+      } catch (err) {
+        console.warn('Notice fetching private space metrics:', err);
+      }
+    };
+
+    fetchPrivateCounts();
+  }, [currentUser?.uid]);
+
+  // 2. Fetch factual connection metrics, upcoming dates, and recent shared activities across active connections
+  useEffect(() => {
+    if (!currentUser?.uid || activeConnections.length === 0) {
+      setLoadingDashboard(false);
+      setRecentSharedActivities([]);
+      setUpcomingDates([]);
+      setPendingInvites([]);
+      return;
+    }
+
+    setLoadingDashboard(true);
+    setDashboardError(null);
+
+    const loadSharedData = async () => {
+      try {
+        const metricsMap: Record<string, { memories: number; goals: number; checkIns: number; dates: number }> = {};
+        const activities: SharedActivityItem[] = [];
+        const datesList: Array<{ id: string; title: string; diffDays: number; connectionName: string; formattedDate: string; isToday: boolean }> = [];
+        const pendingList: ConnectionItem[] = [];
+
+        for (const conn of activeConnections) {
+          if (conn.status === 'waiting') {
+            pendingList.push(conn);
+          }
+
+          metricsMap[conn.id] = { memories: 0, goals: 0, checkIns: 0, dates: 0 };
+
+          // A. Fetch recent memories
           try {
-            const pSnap = await getDoc(doc(db, 'users', partnerId));
-            if (pSnap.exists()) {
-              partnerData = { uid: pSnap.id, ...pSnap.data() } as UserProfile;
-            }
-          } catch (e) {
-            console.warn("Notice loading connection profile:", e);
-          }
-        }
-
-        connList.push({ space, partner: partnerData });
-      }
-      setUserConnections(connList);
-
-      // 2. Check today's private check-in
-      const todayRef = doc(db, 'users', currentUser.uid, 'checkIns', todayDateStr);
-      const todaySnap = await getDoc(todayRef);
-      if (todaySnap.exists()) {
-        const data = todaySnap.data() as UserCheckIn;
-        setTodayUserCheckIn(data);
-        setTodayCheckedIn(true);
-      } else {
-        setTodayUserCheckIn(null);
-        setTodayCheckedIn(false);
-      }
-
-      // 3. Check partner's shared check-in summary today if in space
-      if (partnerProfile && coupleSpace?.id) {
-        const partnerSummaryRef = doc(db, 'couples', coupleSpace.id, 'sharedCheckIns', `${todayDateStr}_${partnerProfile.uid}`);
-        const partnerSummarySnap = await getDoc(partnerSummaryRef);
-        if (partnerSummarySnap.exists()) {
-          setPartnerSharedSummary(partnerSummarySnap.data() as SharedCheckInSummary);
-        } else {
-          setPartnerSharedSummary(null);
-        }
-      }
-
-      // 4. Fetch notifications count
-      try {
-        const notifRef = collection(db, 'notifications', currentUser.uid, 'items');
-        const notifSnap = await getDocs(notifRef);
-        setNotifications(notifSnap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification)));
-      } catch {
-        setNotifications([]);
-      }
-
-      // 5. Load real recent activity if user has active connections
-      if (connList.length > 0) {
-        await loadRealRecentActivity(connList);
-      } else {
-        setRecentActivities([]);
-      }
-
-    } catch (err) {
-      console.error("Dashboard data load error:", err);
-    } finally {
-      setLoadingData(false);
-    }
-  };
-
-  const loadRealRecentActivity = async (connectionsList: UserConnectionData[]) => {
-    const activities: ActivityItem[] = [];
-    const allUpcomingDates: UpcomingDateItem[] = [];
-
-    for (const conn of connectionsList) {
-      const space = conn.space;
-      const partnerName = conn.partner?.displayName || space.creatorName || 'Connection';
-      const label = getConnectionTypeBadge(space.connectionType).label;
-      const prefix = `${partnerName} · ${label}`;
-
-      try {
-        // a. Shared Memories
-        const memSnap = await getDocs(query(collection(db, 'couples', space.id, 'memories'), limit(3)));
-        memSnap.docs.forEach(d => {
-          const data = d.data() as SharedMemory;
-          activities.push({
-            id: d.id,
-            type: 'memory',
-            title: `${prefix} - ${data.title || 'Shared Memory'}`,
-            subtitle: data.description ? `"${data.description.slice(0, 40)}${data.description.length > 40 ? '...' : ''}"` : 'Added a new memory to space',
-            dateStr: data.date || (data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently'),
-            icon: '📸',
-            space: space
-          });
-        });
-
-        // b. Goals
-        const goalSnap = await getDocs(query(collection(db, 'couples', space.id, 'goals'), limit(3)));
-        goalSnap.docs.forEach(d => {
-          const data = d.data() as CoupleGoal;
-          activities.push({
-            id: d.id,
-            type: 'goal',
-            title: `${prefix} - ${data.title || 'Shared Goal'}`,
-            subtitle: data.status === 'completed' ? 'Goal marked as completed! 🎉' : 'Active goal in progress',
-            dateStr: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently',
-            icon: '🎯',
-            space: space
-          });
-        });
-
-        // c. Important Dates
-        const dateSnap = await getDocs(query(collection(db, 'couples', space.id, 'importantDates'), limit(5)));
-        dateSnap.docs.forEach(d => {
-          const data = d.data() as ImportantDate;
-          const dateDetails = calculateDateDetails(data.date, data.repeatYearly);
-          const typeDetails = getDateTypeDetails(data.type || data.category);
-
-          activities.push({
-            id: d.id,
-            type: 'date',
-            title: `${prefix} - ${data.title || 'Important Date'}`,
-            subtitle: `${typeDetails.label} · ${dateDetails.countdownText}`,
-            dateStr: data.date,
-            icon: typeDetails.emoji,
-            space: space
-          });
-
-          if (dateDetails.diffDays >= 0) {
-            allUpcomingDates.push({
-              id: d.id,
-              title: data.title || 'Important Date',
-              type: typeDetails.label,
-              emoji: typeDetails.emoji,
-              connectionContext: prefix,
-              countdownText: dateDetails.countdownText,
-              formattedDate: dateDetails.formattedDate,
-              diffDays: dateDetails.diffDays,
-              isToday: dateDetails.isToday,
-              isTomorrow: dateDetails.isTomorrow,
-              space: space
+            const memSnap = await getDocs(
+              query(collection(db, 'couples', conn.id, 'memories'), limit(5))
+            );
+            metricsMap[conn.id].memories = memSnap.size;
+            memSnap.docs.forEach((doc) => {
+              const data = doc.data();
+              if (data.createdAt) {
+                activities.push({
+                  id: doc.id,
+                  connectionId: conn.id,
+                  connectionName: conn.displayName,
+                  relationshipType: conn.relationshipType,
+                  type: 'memory',
+                  title: data.title ? `Memory: ${data.title}` : 'Shared a new memory',
+                  timestamp: data.createdAt
+                });
+              }
             });
+          } catch (e) {
+            // ignore permission errors on subcollection
           }
-        });
-      } catch (e) {
-        console.warn(`Notice loading recent activity for space ${space.id}:`, e);
+
+          // B. Fetch goals
+          try {
+            const goalsSnap = await getDocs(
+              query(collection(db, 'couples', conn.id, 'goals'), limit(5))
+            );
+            metricsMap[conn.id].goals = goalsSnap.size;
+            goalsSnap.docs.forEach((doc) => {
+              const data = doc.data();
+              if (data.createdAt) {
+                activities.push({
+                  id: doc.id,
+                  connectionId: conn.id,
+                  connectionName: conn.displayName,
+                  relationshipType: conn.relationshipType,
+                  type: 'goal',
+                  title: data.title ? `Goal: ${data.title}` : 'Shared goal created',
+                  timestamp: data.createdAt
+                });
+              }
+            });
+          } catch (e) {
+            // ignore
+          }
+
+          // C. Fetch Important Dates
+          try {
+            const datesSnap = await getDocs(
+              query(collection(db, 'couples', conn.id, 'importantDates'), limit(5))
+            );
+            metricsMap[conn.id].dates = datesSnap.size;
+            datesSnap.docs.forEach((doc) => {
+              const data = doc.data() as ImportantDate;
+              if (data.date) {
+                const dateDetail = calculateDateDetails(data.date);
+                if (dateDetail.diffDays >= 0 && dateDetail.diffDays <= 14) {
+                  datesList.push({
+                    id: doc.id,
+                    title: data.title || 'Important Date',
+                    diffDays: dateDetail.diffDays,
+                    connectionName: conn.displayName,
+                    formattedDate: dateDetail.formattedDate,
+                    isToday: dateDetail.isToday
+                  });
+                }
+              }
+            });
+          } catch (e) {
+            // ignore
+          }
+
+          // D. Fetch Shared Check-Ins
+          try {
+            const checkInsSnap = await getDocs(
+              query(collection(db, 'couples', conn.id, 'sharedCheckIns'), limit(5))
+            );
+            metricsMap[conn.id].checkIns = checkInsSnap.size;
+            checkInsSnap.docs.forEach((doc) => {
+              const data = doc.data();
+              if (data.createdAt) {
+                activities.push({
+                  id: doc.id,
+                  connectionId: conn.id,
+                  connectionName: conn.displayName,
+                  relationshipType: conn.relationshipType,
+                  type: 'checkin',
+                  title: data.feeling ? `Shared check-in: Feeling ${data.feeling}` : 'Check-in shared',
+                  timestamp: data.createdAt
+                });
+              }
+            });
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        // Sort activities chronologically (newest first)
+        activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        // Sort upcoming dates (closest first)
+        datesList.sort((a, b) => a.diffDays - b.diffDays);
+
+        setConnectionMetrics(metricsMap);
+        setRecentSharedActivities(activities.slice(0, 6));
+        setUpcomingDates(datesList);
+        setPendingInvites(pendingList);
+      } catch (err: any) {
+        console.error('Error loading dashboard shared metrics:', err);
+        setDashboardError('Unable to load some shared activity.');
+      } finally {
+        setLoadingDashboard(false);
       }
+    };
+
+    loadSharedData();
+  }, [currentUser?.uid, activeConnections]);
+
+  // 3. Global Private Search across user's connections and shared items
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
     }
 
-    allUpcomingDates.sort((a, b) => a.diffDays - b.diffDays);
-    setUpcomingDates(allUpcomingDates.slice(0, 4));
-    setRecentActivities(activities.slice(0, 5));
-  };
+    setIsSearching(true);
+    const q = searchQuery.toLowerCase().trim();
+    const results: SearchResultItem[] = [];
 
-  const getConnectionTypeBadge = (typeStr?: string) => {
-    const matched = CONNECTION_TYPE_OPTIONS.find(
-      opt => opt.type === typeStr || opt.label.toLowerCase() === (typeStr || '').toLowerCase()
-    );
-    if (matched) {
-      return { label: matched.label, emoji: matched.emoji };
-    }
-    return { label: 'Partner / Lover', emoji: '❤️' };
-  };
+    // A. Search connections
+    activeConnections.forEach((conn) => {
+      if (
+        conn.displayName.toLowerCase().includes(q) ||
+        conn.relationshipType.toLowerCase().includes(q)
+      ) {
+        results.push({
+          id: `conn-${conn.id}`,
+          type: 'connection',
+          title: conn.displayName,
+          subtitle: `Connection · ${conn.relationshipType}`,
+          connectionId: conn.id
+        });
+      }
+    });
 
-  const handleSelectConnectionCard = (conn: UserConnectionData) => {
-    setCoupleSpace(conn.space);
+    // B. Search loaded activities/dates
+    recentSharedActivities.forEach((act) => {
+      if (act.title.toLowerCase().includes(q) || act.connectionName.toLowerCase().includes(q)) {
+        results.push({
+          id: `act-${act.id}`,
+          type: act.type,
+          title: act.title,
+          subtitle: `Shared with ${act.connectionName}`,
+          connectionId: act.connectionId
+        });
+      }
+    });
+
+    upcomingDates.forEach((d) => {
+      if (d.title.toLowerCase().includes(q) || d.connectionName.toLowerCase().includes(q)) {
+        results.push({
+          id: `date-${d.id}`,
+          type: 'date',
+          title: d.title,
+          subtitle: `${d.connectionName} · ${d.formattedDate}`
+        });
+      }
+    });
+
+    setSearchResults(results);
+    setIsSearching(false);
+  }, [searchQuery, activeConnections, recentSharedActivities, upcomingDates]);
+
+  // 4. Filter categories for connections (only categories that actually have active connections)
+  const existingCategories = useMemo(() => {
+    const types = new Set(activeConnections.map((c) => c.rawConnectionType));
+    return CONNECTION_TYPE_OPTIONS.filter((opt) => types.has(opt.type));
+  }, [activeConnections]);
+
+  const filteredConnections = useMemo(() => {
+    if (connectionFilter === 'all') return activeConnections;
+    return activeConnections.filter((c) => c.rawConnectionType === connectionFilter);
+  }, [activeConnections, connectionFilter]);
+
+  const handleOpenConnection = async (connId: string) => {
+    await setActiveConnectionId(connId);
     onNavigateTab('couple');
   };
 
-  const handleGenerateCoachBirthdayMessage = async () => {
-    if (!partnerProfile) return;
-    setIsGeneratingCoachMsg(true);
+  const formatActivityTime = (isoString?: string) => {
+    if (!isoString) return 'Recently';
     try {
-      const generated = await generateBirthdayMessageCoach(
-        partnerProfile.displayName || 'Partner',
-        coachNotes,
-        selectedTone
-      );
-      setBirthdayDraft(generated);
-    } catch (err) {
-      console.warn("Coach generator error:", err);
-    } finally {
-      setIsGeneratingCoachMsg(false);
+      const date = new Date(isoString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffHours < 1) return 'Just now';
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d ago`;
+
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return 'Recently';
     }
   };
 
-  if (loadingData) {
-    return (
-      <div className="w-full space-y-6 pb-24 animate-pulse">
-        <div className="flex items-center justify-between pt-2">
-          <div className="space-y-2">
-            <div className="h-3 w-24 bg-white/10 rounded-full" />
-            <div className="h-7 w-48 bg-white/10 rounded-xl" />
-            <div className="h-3 w-56 bg-white/5 rounded-full" />
-          </div>
-          <div className="h-10 w-28 bg-white/10 rounded-full" />
-        </div>
-        <div className="h-32 rounded-3xl bg-zinc-900/60 border border-white/5" />
-        <div className="h-36 rounded-3xl bg-zinc-900/60 border border-white/5" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="h-20 rounded-2xl bg-zinc-900/60 border border-white/5" />
-          <div className="h-20 rounded-2xl bg-zinc-900/60 border border-white/5" />
-          <div className="h-20 rounded-2xl bg-zinc-900/60 border border-white/5" />
-        </div>
-      </div>
-    );
-  }
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'memory': return <Camera className="w-4 h-4 text-pink-400" />;
+      case 'goal': return <Target className="w-4 h-4 text-violet-400" />;
+      case 'date': return <Calendar className="w-4 h-4 text-purple-400" />;
+      case 'checkin': return <Activity className="w-4 h-4 text-rose-400" />;
+      case 'note': return <StickyNote className="w-4 h-4 text-amber-400" />;
+      default: return <Sparkles className="w-4 h-4 text-zinc-400" />;
+    }
+  };
+
+  const greetingName = userProfile?.displayName || currentUser?.displayName || 'there';
 
   return (
     <div className="w-full space-y-6 pb-28 animate-fadeIn">
-      {/* ========================================================= */}
-      {/* 1. HEADER */}
-      {/* ========================================================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+      {/* 1. Header & Privacy Indicator */}
+      <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            {/* Abstract TRUSTLY Connection Icon */}
-            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-rose-500 via-purple-600 to-indigo-600 p-[1.5px] shadow-md shadow-rose-500/20">
-              <div className="w-full h-full bg-zinc-950 rounded-[10px] flex items-center justify-center text-white">
-                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
-              </div>
-            </div>
-            <span className="font-mono text-xs font-bold tracking-wider uppercase text-rose-300">
-              TRUSTLY
-            </span>
-          </div>
-
-          <span className="text-xs text-zinc-400 font-medium block">
-            {getGreetingByTime()}
-          </span>
-
-          <h1 className="text-2xl font-extrabold tracking-tight text-white mt-0.5">
-            Welcome back, {userProfile?.displayName || currentUser?.email?.split('@')[0] || 'Friend'} 👋
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            Good to see you, {greetingName}
           </h1>
-
-          <p className="text-xs text-zinc-400 mt-1 leading-snug">
-            Make space for the relationships that matter.
+          <p className="text-xs sm:text-sm text-zinc-400 mt-1 leading-relaxed">
+            Your private space for the relationships that matter.
           </p>
         </div>
 
-        {/* Switcher & Notification Bell */}
-        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
-          <ConnectionSwitcher onOpenPairing={(mode) => onOpenPairing ? onOpenPairing(mode) : onNavigateTab('connections')} />
-
-          <button
-            onClick={() => setShowNotificationsModal(true)}
-            className="p-2.5 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-rose-500/30 text-zinc-300 hover:text-white transition-all relative cursor-pointer"
-            title="Notifications"
-          >
-            <Bell className="w-4.5 h-4.5" />
-            {notifications.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-[9px] font-bold text-white flex items-center justify-center shadow-md">
-                {notifications.length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* ========================================================= */}
-      {/* BIRTHDAY BANNER (IF APPLICABLE) */}
-      {/* ========================================================= */}
-      {isUserBirthday && (
-        <div className="glass-card rounded-3xl p-5 border border-rose-500/30 bg-gradient-to-r from-rose-500/15 via-purple-500/10 to-amber-500/15 shadow-xl relative overflow-hidden animate-fadeIn">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-xl flex items-center justify-center shrink-0">
-              🎉
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Happy Birthday! 🎂✨</h3>
-              <p className="text-xs text-zinc-300 mt-0.5">
-                Today is your special day. Wishing you warmth and joy.
-              </p>
-            </div>
+        {/* Zero-Trust Privacy Pill */}
+        <button
+          onClick={() => onNavigateTab('privacy')}
+          className="self-start sm:self-auto px-3.5 py-1.5 rounded-2xl bg-zinc-900/90 border border-white/10 hover:border-emerald-500/40 text-left transition-all cursor-pointer shadow-sm group flex items-center gap-2"
+          title="Privacy Center"
+        >
+          <div className="w-6 h-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <Lock className="w-3.5 h-3.5 text-emerald-400" />
           </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* 2. MY CONNECTIONS SECTION */}
-      {/* ========================================================= */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-            <Users className="w-4 h-4 text-violet-400" />
-            <span>My Connections</span>
-          </h2>
-
-          <button
-            onClick={() => onOpenPairing ? onOpenPairing('options') : onNavigateTab('connections')}
-            className="text-xs font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Connection</span>
-          </button>
-        </div>
-
-        {userConnections.length === 0 ? (
-          /* Empty Connections State */
-          <div className="glass-card rounded-3xl p-6 border border-white/10 text-center space-y-3 bg-zinc-900/60">
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 mx-auto flex items-center justify-center">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">No connections yet.</h3>
-              <p className="text-xs text-zinc-400 mt-1 max-w-xs mx-auto leading-relaxed">
-                Choose someone important to you and create your first private connection.
-              </p>
-            </div>
-            <button
-              onClick={() => onOpenPairing ? onOpenPairing('options') : onNavigateTab('connections')}
-              className="py-3 px-5 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-violet-600 text-white font-semibold text-xs shadow-md shadow-rose-600/20 hover:opacity-95 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Connection</span>
-            </button>
-          </div>
-        ) : (
-          /* List of Real User Connections */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {userConnections.map((conn) => {
-              const badge = getConnectionTypeBadge(conn.space.connectionType);
-              const partnerName = conn.partner?.displayName || conn.space.creatorName || 'Connection';
-              const isSelected = coupleSpace?.id === conn.space.id;
-              const isConnected = conn.space.status === 'connected' || (conn.space.memberIds && conn.space.memberIds.length >= 2);
-
-              return (
-                <div
-                  key={conn.space.id}
-                  onClick={() => handleSelectConnectionCard(conn)}
-                  className={`glass-card rounded-3xl p-4 border transition-all cursor-pointer relative overflow-hidden group shadow-lg ${
-                    isSelected
-                      ? 'border-rose-500/50 bg-rose-500/[0.06] ring-1 ring-rose-500/30'
-                      : 'border-white/10 hover:border-white/20 bg-zinc-900/60'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {/* Avatar */}
-                      <div className="w-11 h-11 rounded-2xl border border-white/15 bg-zinc-950 flex items-center justify-center text-white font-bold text-sm overflow-hidden shrink-0 shadow-md">
-                        {conn.partner?.photoURL ? (
-                          <img src={conn.partner.photoURL} alt={partnerName} className="w-full h-full object-cover" />
-                        ) : (
-                          <span>{partnerName.charAt(0).toUpperCase()}</span>
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-sm text-white truncate max-w-[140px]">
-                            {partnerName}
-                          </h3>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-200 font-medium inline-flex items-center gap-1">
-                            <span>{badge.emoji}</span>
-                            <span>{badge.label}</span>
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 mt-1">
-                          {isConnected ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                              <span>Connection Active</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-medium">
-                              <Clock className="w-3 h-3 text-amber-400" />
-                              <span>Pending Invitation</span>
-                            </span>
-                          )}
-
-                          <span className="text-zinc-600">•</span>
-
-                          <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400">
-                            <Lock className="w-3 h-3 text-zinc-500" />
-                            <span>Private</span>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-zinc-400 group-hover:text-white transition-colors">
-                      <ChevronRight className="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ========================================================= */}
-      {/* 3. TODAY SECTION */}
-      {/* ========================================================= */}
-      <div className="glass-card rounded-3xl p-5 border border-white/10 bg-zinc-900/60 space-y-4 shadow-xl">
-        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-              <Activity className="w-4 h-4 text-rose-400" />
-              <span>Today</span>
-            </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              How are your connections feeling today?
-            </p>
-          </div>
-
-          {todayCheckedIn && (
-            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold flex items-center gap-1">
-              <Check className="w-3 h-3" />
-              <span>Check-in Complete</span>
+            <span className="block text-[11px] font-bold text-white group-hover:text-emerald-300 transition-colors">
+              Private by default
             </span>
-          )}
-        </div>
-
-        {/* Real Daily Check-in Card */}
-        <div className="p-4 rounded-2xl bg-zinc-950/80 border border-white/5 space-y-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-zinc-300 font-medium">Your Daily Reflection</span>
-            <span className="text-zinc-500 font-mono text-[10px]">{todayDateStr}</span>
+            <span className="block text-[9px] text-zinc-500">
+              Shared only when you choose
+            </span>
           </div>
-
-          {todayCheckedIn && todayUserCheckIn ? (
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{todayUserCheckIn.feelingEmoji || '✨'}</span>
-              <div>
-                <div className="text-xs font-bold text-white">Feeling {todayUserCheckIn.feeling}</div>
-                <div className="text-[10px] text-zinc-400 mt-0.5">
-                  {todayUserCheckIn.shareWithPartner ? 'Shared with connection space' : 'Saved privately in your journal'}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Take 60 seconds to reflect on your current mood and boundaries.
-            </p>
-          )}
-
-          <button
-            onClick={() => {
-              setCheckInModalInitialTab('checkin');
-              setShowCheckInModal(true);
-            }}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 via-rose-600 to-violet-600 text-white font-semibold text-xs shadow-md shadow-rose-600/20 hover:opacity-95 active:scale-[0.985] cursor-pointer flex items-center justify-center gap-2 ring-1 ring-white/20 transition-all"
-          >
-            <span>{todayCheckedIn ? 'Update Daily Check-in' : 'Daily Check-in'}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Partner Shared Summary (if available today) */}
-        {partnerSharedSummary && partnerProfile && (
-          <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-xs space-y-1.5 animate-fadeIn">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-purple-300 flex items-center gap-1.5">
-                <span>{partnerSharedSummary.feelingEmoji || '🤝'}</span>
-                <span>{partnerProfile.displayName || 'Connection'} shared today:</span>
-              </span>
-              <span className="text-[10px] text-purple-300/70 font-mono">Shared Pulse</span>
-            </div>
-            <p className="text-zinc-200 text-xs italic leading-relaxed">
-              "{partnerSharedSummary.sharedSummary}"
-            </p>
-          </div>
-        )}
+        </button>
       </div>
 
-      {/* ========================================================= */}
-      {/* 4. QUICK ACTIONS GRID */}
-      {/* ========================================================= */}
-      <div className="space-y-3">
-        <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-          <Zap className="w-4 h-4 text-amber-400" />
-          <span>Quick Actions</span>
-        </h2>
-
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {/* Action 1: Start a Conversation */}
-          <button
-            onClick={() => setShowConversationModal(true)}
-            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-rose-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md"
-          >
-            <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-3">
-              <MessageSquare className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-xs text-white group-hover:text-rose-300 transition-colors">
-                Start a Conversation
-              </h3>
-              <p className="text-[10px] text-zinc-400 mt-0.5">
-                Gentle starters
-              </p>
-            </div>
-          </button>
-
-          {/* Action 2: Shared Goal */}
-          <button
-            onClick={() => {
-              setGoalsModalInitialMode('create');
-              setShowGoalsModal(true);
-            }}
-            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-violet-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md"
-          >
-            <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center mb-3">
-              <Target className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-xs text-white group-hover:text-violet-300 transition-colors">
-                Shared Goal
-              </h3>
-              <p className="text-[10px] text-zinc-400 mt-0.5">
-                Build habits together
-              </p>
-            </div>
-          </button>
-
-          {/* Action 3: Add Memory */}
-          <button
-            onClick={() => onNavigateTab('couple')}
-            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-indigo-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md"
-          >
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-3">
-              <Camera className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-xs text-white group-hover:text-indigo-300 transition-colors">
-                Add Memory
-              </h3>
-              <p className="text-[10px] text-zinc-400 mt-0.5">
-                Save special moments
-              </p>
-            </div>
-          </button>
-
-          {/* Action 4: Important Date */}
-          <button
-            onClick={() => onNavigateTab('couple')}
-            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-emerald-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md"
-          >
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-3">
-              <Calendar className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-xs text-white group-hover:text-emerald-300 transition-colors">
-                Important Date
-              </h3>
-              <p className="text-[10px] text-zinc-400 mt-0.5">
-                Birthdays & milestones
-              </p>
-            </div>
-          </button>
-
-          {/* Action 5: TRUSTLY Coach */}
-          <button
-            onClick={() => onNavigateTab('coach')}
-            className="p-4 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-amber-500/40 text-left transition-all group flex flex-col justify-between cursor-pointer active:scale-95 shadow-md col-span-2 sm:col-span-1"
-          >
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
-              <Sparkles className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-xs text-white group-hover:text-amber-300 transition-colors">
-                TRUSTLY Coach
-              </h3>
-              <p className="text-[10px] text-zinc-400 mt-0.5">
-                AI communication advisor
-              </p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* ========================================================= */}
-      {/* 4.5. UPCOMING DATES ACROSS ALL CONNECTIONS */}
-      {/* ========================================================= */}
-      {upcomingDates.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-purple-400" />
-              <span>Upcoming</span>
-            </h2>
-          </div>
-
-          <div className="space-y-2">
-            {upcomingDates.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => {
-                  if (item.space) {
-                    setCoupleSpace(item.space);
-                  }
-                  onNavigateTab('couple');
-                }}
-                className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-purple-500/30 transition-all flex items-center justify-between cursor-pointer group shadow-sm text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl shrink-0">{item.emoji}</span>
-                  <div>
-                    <div className="font-semibold text-xs text-white group-hover:text-purple-300 transition-colors">
-                      {item.title}
-                    </div>
-                    <div className="text-[10px] text-zinc-400 mt-0.5">
-                      {item.connectionContext}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    item.isToday
-                      ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
-                      : item.isTomorrow
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                      : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
-                  }`}>
-                    {item.countdownText}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* 5. RECENT ACTIVITY */}
-      {/* ========================================================= */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-            <Layers className="w-4 h-4 text-indigo-400" />
-            <span>Recent Activity</span>
-          </h2>
-
-          {coupleSpace?.id && (
+      {/* 2. Global Search ("Search TRUSTLY") */}
+      <div className="relative">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search TRUSTLY (connections, memories, goals, dates)..."
+            className="w-full pl-10 pr-10 py-3 rounded-2xl bg-zinc-900/80 border border-white/10 text-white placeholder:text-zinc-500 text-xs sm:text-sm focus:outline-none focus:border-violet-500 transition-all"
+          />
+          {searchQuery && (
             <button
-              onClick={() => onNavigateTab('couple')}
-              className="text-xs font-medium text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-zinc-500 hover:text-white transition-colors cursor-pointer"
             >
-              <span>View Space</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {recentActivities.length === 0 ? (
-          <div className="p-5 rounded-2xl bg-zinc-900/40 border border-white/5 text-center text-xs text-zinc-400">
-            Nothing new yet.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {recentActivities.map((act) => (
-              <div
-                key={act.id}
-                onClick={() => {
-                  if (act.space) {
-                    setCoupleSpace(act.space);
-                  }
-                  onNavigateTab('couple');
-                }}
-                className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-white/15 transition-all flex items-center justify-between cursor-pointer group"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl shrink-0">{act.icon}</span>
-                  <div>
-                    <div className="font-semibold text-xs text-white group-hover:text-rose-300 transition-colors">
-                      {act.title}
-                    </div>
-                    <div className="text-[10px] text-zinc-400 mt-0.5">
-                      {act.subtitle}
-                    </div>
-                  </div>
-                </div>
-
-                <span className="text-[10px] font-mono text-zinc-500">
-                  {act.dateStr}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ========================================================= */}
-      {/* 6. PRIVACY CARD */}
-      {/* ========================================================= */}
-      <div className="glass-card rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.04] space-y-3 relative overflow-hidden shadow-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
-            <Lock className="w-4 h-4 text-emerald-400" />
-            <span>Private by Default</span>
-          </div>
-
-          <button
-            onClick={() => onNavigateTab('privacy')}
-            className="text-xs font-semibold text-emerald-300 hover:text-white flex items-center gap-1 cursor-pointer"
-          >
-            <span>Privacy Center →</span>
-          </button>
-        </div>
-
-        <p className="text-xs text-zinc-300 leading-relaxed">
-          Your personal reflections and private conversations stay yours unless you choose to share them.
-        </p>
-
-        <div className="pt-1 border-t border-emerald-500/10 flex items-center justify-between text-[10px] text-zinc-400">
-          <span className="flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Firebase Security Rule Enforced</span>
-          </span>
-          <span>Zero Secret Monitoring</span>
-        </div>
-      </div>
-
-      {/* MODALS */}
-      <DailyCheckInModal
-        isOpen={showCheckInModal}
-        onClose={() => setShowCheckInModal(false)}
-        initialTab={checkInModalInitialTab}
-        onOpenCoachWithTopic={onOpenCoachWithTopic}
-      />
-
-      <ConversationStartersModal
-        isOpen={showConversationModal}
-        onClose={() => setShowConversationModal(false)}
-        onOpenCoachWithTopic={onOpenCoachWithTopic}
-      />
-
-      <CoupleGoalsModal
-        isOpen={showGoalsModal}
-        onClose={() => setShowGoalsModal(false)}
-        initialMode={goalsModalInitialMode}
-      />
-
-      {/* NOTIFICATIONS MODAL */}
-      {showNotificationsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-sm bg-[#111116] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/5">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Bell className="w-4 h-4 text-rose-400" />
-                <span>Notifications</span>
-              </h3>
-              <button
-                onClick={() => setShowNotificationsModal(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-white cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        {/* Dynamic Search Results Dropdown */}
+        {searchQuery.trim() && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-950 border border-white/15 rounded-3xl p-3 shadow-2xl z-30 space-y-2 animate-scaleUp">
+            <div className="flex items-center justify-between px-2 pb-1 border-b border-white/5 text-[11px] text-zinc-400">
+              <span>Results ({searchResults.length})</span>
+              <span className="text-[10px] text-zinc-500">Only your accessible data</span>
             </div>
 
-            {notifications.length === 0 ? (
-              <div className="py-8 text-center text-xs text-zinc-400">
-                No notifications right now.
+            {searchResults.length === 0 ? (
+              <div className="py-6 text-center text-xs text-zinc-400">
+                No matching connections or shared items found.
               </div>
             ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
-                {notifications.map((n) => (
-                  <div key={n.id} className="p-3 rounded-2xl bg-zinc-900 border border-white/5 text-xs space-y-1">
-                    <div className="font-semibold text-white">{n.title}</div>
-                    <div className="text-zinc-300 text-[11px]">{n.message}</div>
+              <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                {searchResults.map((res) => (
+                  <button
+                    key={res.id}
+                    onClick={() => {
+                      setSearchQuery('');
+                      if (res.connectionId) {
+                        handleOpenConnection(res.connectionId);
+                      } else {
+                        onNavigateTab('connections');
+                      }
+                    }}
+                    className="w-full p-2.5 rounded-xl hover:bg-zinc-900 text-left flex items-center justify-between gap-3 cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <div className="p-1.5 rounded-lg bg-zinc-900 border border-white/5">
+                        {getActivityIcon(res.type)}
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-bold text-white group-hover:text-violet-300 transition-colors truncate">
+                          {res.title}
+                        </p>
+                        <p className="text-[10px] text-zinc-400 truncate">
+                          {res.subtitle}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-600 group-hover:text-white transition-colors shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Main Dashboard Responsive Layout (Desktop 2-Column Grid) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* LEFT COLUMN (lg: 7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          
+          {/* Section: Today */}
+          <div className="glass-card rounded-3xl p-5 border border-white/10 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-violet-400" />
+                <h2 className="text-sm font-bold text-white tracking-tight">Today</h2>
+              </div>
+              <span className="text-[10px] text-zinc-500 font-mono">
+                {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+
+            {/* Factual Today Items */}
+            {upcomingDates.length > 0 || pendingInvites.length > 0 || unreadNotificationCount > 0 ? (
+              <div className="space-y-2">
+                {/* Upcoming date notice */}
+                {upcomingDates.slice(0, 2).map((d) => (
+                  <div
+                    key={d.id}
+                    className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Calendar className="w-4 h-4 text-purple-400 shrink-0" />
+                      <div className="truncate">
+                        <span className="font-bold text-white">{d.title}</span>
+                        <span className="text-zinc-400 text-[11px] block truncate">
+                          {d.connectionName} · {d.isToday ? 'Happening Today' : `In ${d.diffDays} days (${d.formattedDate})`}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-extrabold shrink-0">
+                      {d.isToday ? 'Today' : `${d.diffDays}d`}
+                    </span>
+                  </div>
+                ))}
+
+                {/* Pending invitation alert */}
+                {pendingInvites.slice(0, 1).map((inv) => (
+                  <div
+                    key={inv.id}
+                    onClick={() => onNavigateTab('connections')}
+                    className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-3 text-xs cursor-pointer hover:bg-amber-500/15 transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                      <div className="truncate">
+                        <span className="font-bold text-white">{inv.displayName}</span>
+                        <span className="text-amber-300/80 text-[11px] block">
+                          Invitation waiting for connection to join
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold shrink-0">
+                      Review
+                    </span>
+                  </div>
+                ))}
+
+                {/* Unread notification banner */}
+                {unreadNotificationCount > 0 && (
+                  <div
+                    onClick={() => onNavigateTab('connections')}
+                    className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-between gap-3 text-xs cursor-pointer hover:bg-rose-500/15 transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Bell className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span className="font-semibold text-zinc-200 truncate">
+                        You have {unreadNotificationCount} unread notification{unreadNotificationCount > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Factual Empty Today Notice */
+              <div className="py-4 px-3 rounded-2xl bg-zinc-900/40 border border-white/5 flex items-center gap-3 text-xs text-zinc-400">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Nothing needs your attention today.</span>
+              </div>
+            )}
+          </div>
+
+          {/* Section: Your Connections */}
+          <div className="space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-violet-400" />
+                <h2 className="text-sm font-bold text-white tracking-tight">Your Connections</h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-bold">
+                  {activeConnections.length}
+                </span>
+              </div>
+
+              {activeConnections.length > 0 && (
+                <button
+                  onClick={() => onNavigateTab('connections')}
+                  className="text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span>View All</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Connection Filter Chips (if multiple categories exist) */}
+            {existingCategories.length > 1 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                <button
+                  onClick={() => setConnectionFilter('all')}
+                  className={`py-1 px-2.5 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer ${
+                    connectionFilter === 'all'
+                      ? 'bg-violet-600/20 border-violet-500/50 text-white'
+                      : 'bg-zinc-900/60 border-white/5 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  All ({activeConnections.length})
+                </button>
+                {existingCategories.map((cat) => {
+                  const count = activeConnections.filter((c) => c.rawConnectionType === cat.type).length;
+                  return (
+                    <button
+                      key={cat.type}
+                      onClick={() => setConnectionFilter(cat.type)}
+                      className={`py-1 px-2.5 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer ${
+                        connectionFilter === cat.type
+                          ? 'bg-violet-600/20 border-violet-500/50 text-white'
+                          : 'bg-zinc-900/60 border-white/5 text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      {cat.label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Connections Grid / Empty State */}
+            {connectionsLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="h-36 rounded-3xl bg-zinc-900/60 border border-white/5 animate-pulse" />
+                <div className="h-36 rounded-3xl bg-zinc-900/60 border border-white/5 animate-pulse" />
+              </div>
+            ) : filteredConnections.length === 0 ? (
+              /* Empty Connections State */
+              <div className="glass-card rounded-3xl p-7 border border-white/10 text-center space-y-3.5 animate-scaleUp">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-600/20 to-pink-600/20 border border-violet-500/30 flex items-center justify-center mx-auto text-violet-400">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Build your first connection.</h3>
+                  <p className="text-xs text-zinc-400 max-w-xs mx-auto mt-1 leading-relaxed">
+                    Create a private space for someone who matters to you.
+                  </p>
+                </div>
+                <div className="pt-1 flex justify-center gap-2">
+                  <button
+                    onClick={() => (onOpenPairing ? onOpenPairing('options') : onNavigateTab('connections'))}
+                    className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-violet-600 to-pink-600 text-white text-xs font-bold shadow-lg shadow-violet-500/20 hover:opacity-95 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Connection</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {filteredConnections.map((conn) => {
+                  const isCurrentActive = activeConnectionId === conn.id;
+                  const metrics = connectionMetrics[conn.id] || { memories: 0, goals: 0, checkIns: 0, dates: 0 };
+                  
+                  // Construct factual activity string
+                  const summaryParts: string[] = [];
+                  if (metrics.memories > 0) summaryParts.push(`${metrics.memories} memory${metrics.memories > 1 ? 'ies' : ''}`);
+                  if (metrics.goals > 0) summaryParts.push(`${metrics.goals} goal${metrics.goals > 1 ? 's' : ''}`);
+                  if (metrics.checkIns > 0) summaryParts.push(`${metrics.checkIns} check-in${metrics.checkIns > 1 ? 's' : ''}`);
+                  const activitySummary = summaryParts.length > 0 ? summaryParts.join(' · ') : 'No shared activity yet';
+
+                  return (
+                    <div
+                      key={conn.id}
+                      className={`glass-card rounded-3xl p-4 border transition-all flex flex-col justify-between group shadow-lg ${
+                        isCurrentActive
+                          ? 'border-violet-500/50 bg-violet-500/[0.05] ring-1 ring-violet-500/30'
+                          : 'border-white/10 hover:border-white/20 bg-zinc-900/60'
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <InitialsAvatar
+                              name={conn.displayName}
+                              photoURL={conn.partner?.photoURL}
+                              size="md"
+                            />
+                            <div className="min-w-0">
+                              <h3 className="text-sm font-bold text-white truncate">
+                                {conn.displayName}
+                              </h3>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-300 font-semibold inline-block mt-0.5">
+                                {conn.relationshipType}
+                              </span>
+                            </div>
+                          </div>
+
+                          {conn.status === 'waiting' ? (
+                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 font-bold shrink-0">
+                              Pending
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                              Connected
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Factual Activity Summary */}
+                        <p className="text-[11px] text-zinc-400 truncate">
+                          {activitySummary}
+                        </p>
+                      </div>
+
+                      <div className="pt-3 mt-2 border-t border-white/5 flex items-center justify-end">
+                        <button
+                          onClick={() => handleOpenConnection(conn.id)}
+                          className="py-1.5 px-3 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 text-white text-xs font-semibold border border-violet-500/30 flex items-center gap-1 transition-all cursor-pointer group-hover:border-violet-500/60"
+                        >
+                          <span>Open Connection</span>
+                          <ChevronRight className="w-3 h-3 text-violet-300 transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Section: Recent Shared Activity */}
+          <div className="glass-card rounded-3xl p-5 border border-white/10 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-rose-400" />
+                <h2 className="text-sm font-bold text-white tracking-tight">Recent Shared Activity</h2>
+              </div>
+              <span className="text-[10px] text-zinc-500">
+                Shared spaces only
+              </span>
+            </div>
+
+            {loadingDashboard ? (
+              <div className="space-y-2">
+                <div className="h-12 rounded-2xl bg-zinc-900/60 border border-white/5 animate-pulse" />
+                <div className="h-12 rounded-2xl bg-zinc-900/60 border border-white/5 animate-pulse" />
+              </div>
+            ) : recentSharedActivities.length === 0 ? (
+              <div className="py-6 text-center text-xs text-zinc-400">
+                No shared activity yet. Moments you share with your connections will appear here.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recentSharedActivities.map((act) => (
+                  <div
+                    key={`${act.type}-${act.id}`}
+                    onClick={() => handleOpenConnection(act.connectionId)}
+                    className="p-3 rounded-2xl bg-zinc-900/50 border border-white/5 flex items-center justify-between gap-3 text-xs hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 rounded-xl bg-zinc-950 border border-white/10 shrink-0">
+                        {getActivityIcon(act.type)}
+                      </div>
+                      <div className="truncate">
+                        <span className="font-bold text-white group-hover:text-violet-300 transition-colors block truncate">
+                          {act.title}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 block truncate">
+                          {act.connectionName} ({act.relationshipType})
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-zinc-500 font-mono shrink-0">
+                      {formatActivityTime(act.timestamp)}
+                    </span>
                   </div>
                 ))}
               </div>
             )}
           </div>
         </div>
-      )}
+
+        {/* RIGHT COLUMN (lg: 5 cols) */}
+        <div className="lg:col-span-5 space-y-6">
+          
+          {/* Section: Your Private Space */}
+          <div className="glass-card rounded-3xl p-5 border border-violet-500/20 bg-gradient-to-b from-violet-950/20 to-zinc-950/40 space-y-4 shadow-xl">
+            <div className="border-b border-white/5 pb-3">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-sm font-bold text-white tracking-tight">Your Private Space</h2>
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-0.5">
+                Things only you can see. Never shared with any connection.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Card 1: Private Check-Ins */}
+              <button
+                onClick={() => {
+                  setCheckInInitialTab('history');
+                  setShowCheckInModal(true);
+                }}
+                className="p-3.5 rounded-2xl bg-zinc-900/70 border border-white/5 hover:border-violet-500/40 text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[90px]"
+              >
+                <div className="flex items-center justify-between text-zinc-400">
+                  <Activity className="w-4 h-4 text-rose-400" />
+                  <span className="text-[10px] font-mono text-zinc-500 font-bold">
+                    {privateCheckInCount > 0 ? privateCheckInCount : '0'}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white group-hover:text-violet-300 transition-colors">
+                    Private Check-Ins
+                  </h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
+                    {privateCheckInCount > 0 ? `${privateCheckInCount} reflections` : 'Nothing here yet'}
+                  </p>
+                </div>
+              </button>
+
+              {/* Card 2: AI Coach */}
+              <button
+                onClick={() => onNavigateTab('coach')}
+                className="p-3.5 rounded-2xl bg-zinc-900/70 border border-white/5 hover:border-violet-500/40 text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[90px]"
+              >
+                <div className="flex items-center justify-between text-zinc-400">
+                  <Sparkles className="w-4 h-4 text-violet-400" />
+                  <span className="text-[10px] font-mono text-zinc-500 font-bold">
+                    {aiCoachConversationsCount > 0 ? aiCoachConversationsCount : 'Active'}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white group-hover:text-violet-300 transition-colors">
+                    AI Coach
+                  </h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
+                    {aiCoachConversationsCount > 0 ? `${aiCoachConversationsCount} conversations` : 'Start coaching'}
+                  </p>
+                </div>
+              </button>
+
+              {/* Card 3: Private Reflections / Journal */}
+              <button
+                onClick={() => onNavigateTab('journal')}
+                className="p-3.5 rounded-2xl bg-zinc-900/70 border border-white/5 hover:border-violet-500/40 text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[90px]"
+              >
+                <div className="flex items-center justify-between text-zinc-400">
+                  <BookOpen className="w-4 h-4 text-amber-400" />
+                  <span className="text-[10px] font-mono text-zinc-500 font-bold">
+                    {privateJournalCount > 0 ? privateJournalCount : '0'}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white group-hover:text-violet-300 transition-colors">
+                    Private Reflections
+                  </h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
+                    {privateJournalCount > 0 ? `${privateJournalCount} entries` : 'Nothing here yet'}
+                  </p>
+                </div>
+              </button>
+
+              {/* Card 4: Personal Boundaries */}
+              <button
+                onClick={() => onNavigateTab('boundaries')}
+                className="p-3.5 rounded-2xl bg-zinc-900/70 border border-white/5 hover:border-violet-500/40 text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[90px]"
+              >
+                <div className="flex items-center justify-between text-zinc-400">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[10px] font-mono text-zinc-500 font-bold">
+                    {privateBoundariesCount > 0 ? privateBoundariesCount : '0'}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white group-hover:text-violet-300 transition-colors">
+                    Personal Notes
+                  </h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
+                    {privateBoundariesCount > 0 ? `${privateBoundariesCount} boundaries` : 'Nothing here yet'}
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Section: Quick Actions */}
+          <div className="glass-card rounded-3xl p-5 border border-white/10 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-violet-400" />
+                <h2 className="text-sm font-bold text-white tracking-tight">Quick Actions</h2>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => (onOpenPairing ? onOpenPairing('options') : onNavigateTab('connections'))}
+                className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-violet-500/30 text-left flex items-center gap-2.5 cursor-pointer transition-all group"
+              >
+                <Plus className="w-4 h-4 text-violet-400 shrink-0" />
+                <span className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
+                  Add Connection
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setCheckInInitialTab('checkin');
+                  setShowCheckInModal(true);
+                }}
+                className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-violet-500/30 text-left flex items-center gap-2.5 cursor-pointer transition-all group"
+              >
+                <Activity className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
+                  Check In
+                </span>
+              </button>
+
+              <button
+                onClick={() => setShowConversationModal(true)}
+                className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-violet-500/30 text-left flex items-center gap-2.5 cursor-pointer transition-all group"
+              >
+                <MessageSquare className="w-4 h-4 text-blue-400 shrink-0" />
+                <span className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
+                  Conversation
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (activeConnectionId) {
+                    onNavigateTab('couple');
+                  } else {
+                    onNavigateTab('connections');
+                  }
+                }}
+                className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-violet-500/30 text-left flex items-center gap-2.5 cursor-pointer transition-all group"
+              >
+                <Camera className="w-4 h-4 text-pink-400 shrink-0" />
+                <span className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
+                  Add Memory
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setGoalsInitialMode('create');
+                  setShowGoalsModal(true);
+                }}
+                className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-violet-500/30 text-left flex items-center gap-2.5 cursor-pointer transition-all group"
+              >
+                <Target className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
+                  Create Goal
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (activeConnectionId) {
+                    onNavigateTab('couple');
+                  } else {
+                    onNavigateTab('connections');
+                  }
+                }}
+                className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-violet-500/30 text-left flex items-center gap-2.5 cursor-pointer transition-all group"
+              >
+                <Calendar className="w-4 h-4 text-purple-400 shrink-0" />
+                <span className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
+                  Important Date
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Privacy Reassurance Banner */}
+          <div className="p-4 rounded-3xl bg-zinc-950/60 border border-white/5 space-y-2 text-xs text-zinc-400">
+            <div className="flex items-center gap-2 text-white font-semibold">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Strict Data Separation</span>
+            </div>
+            <p className="leading-relaxed text-[11px]">
+              TRUSTLY never mixes private reflections with shared spaces. Each connection operates in its own isolated container.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Daily Check-In Modal */}
+      <DailyCheckInModal
+        isOpen={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+        initialTab={checkInInitialTab}
+        onOpenCoachWithTopic={onOpenCoachWithTopic}
+      />
+
+      {/* Conversation Starters Modal */}
+      <ConversationStartersModal
+        isOpen={showConversationModal}
+        onClose={() => setShowConversationModal(false)}
+        onOpenCoachWithTopic={onOpenCoachWithTopic}
+      />
+
+      {/* Couple Goals Modal */}
+      <CoupleGoalsModal
+        isOpen={showGoalsModal}
+        onClose={() => setShowGoalsModal(false)}
+        initialMode={goalsInitialMode}
+      />
     </div>
   );
 };

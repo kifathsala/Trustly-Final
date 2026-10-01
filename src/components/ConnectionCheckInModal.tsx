@@ -5,8 +5,7 @@ import {
   doc, 
   setDoc, 
   deleteDoc, 
-  onSnapshot, 
-  query 
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
@@ -22,6 +21,7 @@ import {
   FeelingOption 
 } from '../lib/checkIn';
 import { sendNotification } from '../lib/notifications';
+import { TrustlyImage } from './TrustlyImage';
 import { 
   X, 
   Lock, 
@@ -30,15 +30,12 @@ import {
   Check, 
   AlertCircle, 
   Share2, 
-  History, 
-  Calendar, 
-  Tag, 
   Trash2, 
   Loader2, 
   ArrowRight,
   Filter,
-  Eye,
-  Info
+  Activity,
+  HeartHandshake
 } from 'lucide-react';
 
 interface ConnectionCheckInModalProps {
@@ -97,14 +94,12 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
       const items: ConnectionCheckIn[] = [];
       snap.forEach((docSnap) => {
         const data = docSnap.data();
-        // Filter by connectionId or coupleId
         if (data.connectionId === connectionId || data.coupleId === connectionId) {
           items.push({
             id: docSnap.id,
             connectionId: data.connectionId || connectionId,
             userId: currentUser.uid,
             feeling: data.feeling,
-            feelingEmoji: data.feelingEmoji,
             areas: data.areas || [],
             privateReflection: data.privateReflection || data.reflection || '',
             isShared: Boolean(data.isShared || data.shareWithPartner),
@@ -161,7 +156,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
     const nowIso = new Date().toISOString();
 
     try {
-      // Save strictly to users/{uid}/checkIns/{checkInId}
       const privateDocRef = doc(db, 'users', currentUser.uid, 'checkIns', checkInId);
       const payload: ConnectionCheckIn = {
         id: checkInId,
@@ -171,7 +165,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
         createdBy: currentUser.uid,
         creatorName: userProfile?.displayName || 'You',
         feeling: selectedFeeling.label,
-        feelingEmoji: selectedFeeling.emoji,
         areas: selectedAreas,
         privateReflection: reflection.trim(),
         reflection: reflection.trim(),
@@ -182,7 +175,7 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
 
       await setDoc(privateDocRef, payload);
 
-      setSuccessToast("Check-in saved privately 🔒");
+      setSuccessToast("Check-in saved privately to your account.");
       resetForm();
       if (onCheckInSaved) onCheckInSaved();
 
@@ -217,7 +210,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
         createdBy: currentUser.uid,
         creatorName: userProfile?.displayName || 'You',
         feeling: selectedFeeling.label,
-        feelingEmoji: selectedFeeling.emoji,
         areas: selectedAreas,
         privateReflection: reflection.trim(),
         reflection: reflection.trim(),
@@ -238,7 +230,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
         userId: currentUser.uid,
         creatorName: userProfile?.displayName || 'Connection Partner',
         feeling: selectedFeeling.label,
-        feelingEmoji: selectedFeeling.emoji,
         areas: selectedAreas,
         sharedNote: reflection.trim(),
         createdAt: nowIso,
@@ -250,22 +241,20 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
       try {
         const mirrorDocRef = doc(collection(db, 'connections', connId, 'sharedCheckIns'), checkInId);
         await setDoc(mirrorDocRef, sharedPayload);
-      } catch (mirrorErr) {
-        // Non-blocking mirror
-      }
+      } catch (mirrorErr) {}
 
-      // 4. Send real-time notification to the partner
+      // 4. Send notification
       const partnerId = coupleSpace.memberIds?.find(id => id !== currentUser.uid);
       if (partnerId) {
         sendNotification(partnerId, {
           type: 'check_in_shared',
-          title: 'Connection Check-In 💬',
+          title: 'Connection Check-In',
           body: `${userProfile?.displayName || 'Your connection'} shared how they are feeling today.`,
           connectionId: connId
         }).catch(console.warn);
       }
 
-      setSuccessToast("Check-in shared with your connection 👥");
+      setSuccessToast("Check-in shared with your connection.");
       resetForm();
       if (onCheckInSaved) onCheckInSaved();
 
@@ -286,14 +275,12 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
     setIsSubmitting(true);
     try {
       const nowIso = new Date().toISOString();
-      // Update private doc
       await setDoc(doc(db, 'users', currentUser.uid, 'checkIns', checkIn.id), {
         isShared: true,
         sharedNote: checkIn.privateReflection || '',
         updatedAt: nowIso
       }, { merge: true });
 
-      // Write to shared collection
       const sharedDocRef = doc(collection(db, 'couples', connId, 'sharedCheckIns'), checkIn.id);
       const sharedPayload: SharedConnectionCheckIn = {
         id: checkIn.id,
@@ -303,7 +290,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
         userId: currentUser.uid,
         creatorName: userProfile?.displayName || 'Connection Partner',
         feeling: checkIn.feeling,
-        feelingEmoji: checkIn.feelingEmoji || getFeelingDetails(checkIn.feeling).emoji,
         areas: checkIn.areas || [],
         sharedNote: checkIn.privateReflection || '',
         createdAt: checkIn.createdAt || nowIso,
@@ -311,18 +297,17 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
       };
       await setDoc(sharedDocRef, sharedPayload);
 
-      // Send notification
       const partnerId = coupleSpace.memberIds?.find(id => id !== currentUser.uid);
       if (partnerId) {
         sendNotification(partnerId, {
           type: 'check_in_shared',
-          title: 'Connection Check-In 💬',
+          title: 'Connection Check-In',
           body: `${userProfile?.displayName || 'Your connection'} shared a check-in.`,
           connectionId: connId
         }).catch(console.warn);
       }
 
-      setSuccessToast("Check-in is now shared with this connection 👥");
+      setSuccessToast("Check-in is now shared with this connection.");
       setTimeout(() => setSuccessToast(null), 2500);
     } catch (err: any) {
       console.error("Share existing check-in error:", err);
@@ -347,7 +332,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
     setReflection('');
   };
 
-  // Filter private history
   const filteredPrivate = privateCheckIns.filter(item => {
     if (historyFilter === 'All') return true;
     if (historyFilter === 'Feelings') return Boolean(item.feeling);
@@ -360,12 +344,16 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
         
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-white/5 flex items-center justify-between bg-zinc-950/60">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-              <span className="text-lg">{selectedFeeling.emoji}</span>
-              <span>Connection Check-In</span>
-            </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">{copy.subtitle}</p>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400 shrink-0">
+              <Activity className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                Connection Check-In
+              </h2>
+              <p className="text-xs text-zinc-400 mt-0.5">{copy.subtitle}</p>
+            </div>
           </div>
 
           <button 
@@ -444,7 +432,7 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                   {copy.question}
                 </label>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {FEELING_OPTIONS.map((f) => {
                     const isSelected = selectedFeeling.label === f.label;
                     return (
@@ -452,18 +440,27 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                         key={f.label}
                         type="button"
                         onClick={() => setSelectedFeeling(f)}
-                        className={`p-3 rounded-2xl text-left transition-all border flex flex-col justify-between gap-1.5 cursor-pointer ${
+                        className={`group p-2.5 rounded-2xl text-left transition-all border flex flex-col justify-between cursor-pointer ${
                           isSelected
-                            ? 'bg-gradient-to-br from-violet-600/25 to-pink-600/15 border-violet-500 ring-1 ring-violet-500/40 text-white shadow-lg'
-                            : 'bg-zinc-950/60 border-white/5 hover:border-white/15 text-zinc-300 hover:text-white'
+                            ? 'bg-violet-600/20 border-violet-500 ring-1 ring-violet-500/50 text-white shadow-lg'
+                            : 'bg-zinc-950/70 border-white/10 hover:border-white/20 text-zinc-300 hover:text-white'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xl">{f.emoji}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-violet-400" />}
+                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-2 bg-zinc-900 border border-white/10 relative">
+                          <TrustlyImage 
+                            src={f.image} 
+                            alt={f.label} 
+                            fallbackType="reaction"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          {isSelected && (
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center shadow-md">
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            </div>
+                          )}
                         </div>
                         <div>
-                          <div className="text-xs font-bold">{f.label}</div>
+                          <div className="text-xs font-bold text-white">{f.label}</div>
                           <div className="text-[10px] text-zinc-400 leading-tight line-clamp-1">{f.desc}</div>
                         </div>
                       </button>
@@ -524,7 +521,7 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                 <div className="p-3 rounded-2xl bg-emerald-500/[0.04] border border-emerald-500/20 flex items-start gap-2.5 text-[11px] text-zinc-300">
                   <Lock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold text-emerald-400 block mb-0.5">Private by default 🔒</span>
+                    <span className="font-semibold text-emerald-400 block mb-0.5">Private by default</span>
                     <span className="text-zinc-400 leading-relaxed">
                       Only you can see your reflection unless you choose to share it.
                     </span>
@@ -562,7 +559,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
           {activeTab === 'history' && (
             <div className="space-y-4 animate-fadeIn">
               
-              {/* Filter pills */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
                 <Filter className="w-3.5 h-3.5 text-zinc-400 shrink-0 mr-1" />
                 {['All', 'Feelings', 'Communication', 'Trust', 'Support', 'Boundaries', 'Other'].map(f => (
@@ -586,10 +582,9 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                   <span>Loading check-in history...</span>
                 </div>
               ) : filteredPrivate.length === 0 ? (
-                /* Empty state per spec */
                 <div className="glass-card rounded-3xl p-8 text-center border border-white/5 space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-violet-400 mx-auto flex items-center justify-center text-xl">
-                    🔒
+                  <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-violet-400 mx-auto flex items-center justify-center">
+                    <Lock className="w-5 h-5" />
                   </div>
                   <div>
                     <h4 className="text-sm font-bold text-white">No check-ins yet.</h4>
@@ -625,8 +620,13 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                         className="glass-card rounded-2xl p-4 border border-white/10 space-y-3 hover:border-white/20 transition-all"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-2xl">{feelingDetail.emoji}</span>
+                          <div className="flex items-center gap-3">
+                            <TrustlyImage
+                              src={feelingDetail.image}
+                              alt={feelingDetail.label}
+                              fallbackType="reaction"
+                              containerClassName="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/10"
+                            />
                             <div>
                               <div className="text-xs font-bold text-white flex items-center gap-2">
                                 <span>{feelingDetail.label}</span>
@@ -640,23 +640,21 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Privacy badge */}
                           <div className="flex items-center gap-1.5">
                             {item.isShared ? (
                               <span className="text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
                                 <Users className="w-3 h-3" />
-                                <span>👥 Shared with connection</span>
+                                <span>Shared with connection</span>
                               </span>
                             ) : (
                               <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
                                 <Lock className="w-3 h-3" />
-                                <span>🔒 Only you</span>
+                                <span>Only you</span>
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Areas */}
                         {item.areas && item.areas.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 pt-1">
                             {item.areas.map(a => (
@@ -667,14 +665,12 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                           </div>
                         )}
 
-                        {/* Private Reflection */}
                         {item.privateReflection && (
                           <div className="p-3 rounded-xl bg-zinc-950/70 border border-white/5 text-xs text-zinc-300 leading-relaxed italic">
                             "{item.privateReflection}"
                           </div>
                         )}
 
-                        {/* Actions */}
                         <div className="pt-1 flex items-center justify-between text-xs border-t border-white/5">
                           {!item.isShared ? (
                             <button
@@ -717,10 +713,9 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
               </div>
 
               {sharedCheckIns.length === 0 ? (
-                /* Empty state per spec */
                 <div className="glass-card rounded-3xl p-8 text-center border border-white/5 space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mx-auto flex items-center justify-center text-xl">
-                    👥
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mx-auto flex items-center justify-center">
+                    <Users className="w-5 h-5" />
                   </div>
                   <div>
                     <h4 className="text-sm font-bold text-white">Nothing shared yet.</h4>
@@ -739,7 +734,7 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
               ) : (
                 <div className="space-y-3">
                   {sharedCheckIns.map((item) => {
-                    const feelingDetail = getFeelingDetails(item.feeling || item.feelingEmoji);
+                    const feelingDetail = getFeelingDetails(item.feeling);
                     const isMine = item.createdBy === currentUser.uid || item.userId === currentUser.uid;
                     const senderName = isMine ? 'You' : (item.creatorName || partnerName);
                     const formattedDate = new Date(item.createdAt).toLocaleDateString(undefined, {
@@ -754,8 +749,13 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                         className="glass-card rounded-2xl p-4 border border-white/10 space-y-3"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-2xl">{feelingDetail.emoji}</span>
+                          <div className="flex items-center gap-3">
+                            <TrustlyImage
+                              src={feelingDetail.image}
+                              alt={feelingDetail.label}
+                              fallbackType="reaction"
+                              containerClassName="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/10"
+                            />
                             <div>
                               <div className="text-xs font-bold text-white flex items-center gap-2">
                                 <span>{senderName}</span>
@@ -775,7 +775,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                           </span>
                         </div>
 
-                        {/* Areas */}
                         {item.areas && item.areas.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 pt-1">
                             {item.areas.map(a => (
@@ -786,7 +785,6 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
                           </div>
                         )}
 
-                        {/* Shared Note */}
                         {item.sharedNote && (
                           <div className="p-3 rounded-xl bg-zinc-950/70 border border-white/5 text-xs text-zinc-200 leading-relaxed">
                             "{item.sharedNote}"
@@ -815,7 +813,7 @@ export const ConnectionCheckInModal: React.FC<ConnectionCheckInModalProps> = ({
 
       </div>
 
-      {/* EXPLICIT SHARE CONFIRMATION DIALOG (per Section 4 spec) */}
+      {/* EXPLICIT SHARE CONFIRMATION DIALOG */}
       {showShareConfirm && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
           <div className="w-full max-w-sm bg-[#121218] border border-violet-500/30 rounded-3xl p-6 shadow-2xl space-y-4 text-center animate-scaleIn">

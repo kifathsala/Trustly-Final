@@ -55,8 +55,16 @@ import {
   ChevronRight,
   Activity
 } from 'lucide-react';
-import { getConnectionLabel, getConnectionEmoji } from '../lib/connection';
+import { getConnectionLabel } from '../lib/connection';
 import { ConnectionSwitcher } from './ConnectionSwitcher';
+import { ConnectionSelectorBar } from './ConnectionSelectorBar';
+import { ConnectionHero } from './ConnectionHero';
+import { QuickActionsGrid } from './QuickActionsGrid';
+import { RecentActivitySection } from './RecentActivitySection';
+import { ConversationStarterCard } from './ConversationStarterCard';
+import { SharedSpaceGrid } from './SharedSpaceGrid';
+import { PrivacyStatusBar } from './PrivacyStatusBar';
+import { InitialsAvatar } from './InitialsAvatar';
 import { CouplePairing } from './CouplePairing';
 import { SharedGoals } from './SharedGoals';
 import { ConversationHub } from './ConversationHub';
@@ -110,7 +118,7 @@ export function calculateDateCountdown(dateStr: string, repeatYearly?: boolean):
   const formattedDate = `${day} ${monthName}${!repeatYearly && origYear !== today.getFullYear() ? ` ${origYear}` : ''}`;
 
   if (diffDays === 0) {
-    return { daysRemaining: 0, label: 'Today! 🎉', isUpcoming: true, isToday: true, nextOccurrenceDate: targetDate, formattedDate };
+    return { daysRemaining: 0, label: 'Today', isUpcoming: true, isToday: true, nextOccurrenceDate: targetDate, formattedDate };
   } else if (diffDays === 1) {
     return { daysRemaining: 1, label: 'Tomorrow', isUpcoming: true, isToday: false, nextOccurrenceDate: targetDate, formattedDate };
   } else if (diffDays > 1 && diffDays <= 60) {
@@ -598,45 +606,11 @@ export const CoupleSpaceView: React.FC = () => {
 
   // Helper for Category icons
   const getDateCategoryIcon = (category?: string) => {
-    switch (category) {
-      case 'Anniversary':
-        return '❤️';
-      case 'Birthday':
-        return '🎂';
-      case 'First Meeting':
-      case 'First Date':
-        return '✨';
-      case 'Special Day':
-      case 'Milestone':
-        return '🌟';
-      case 'Trip':
-        return '✈️';
-      default:
-        return '📅';
-    }
+    return '';
   };
 
   const getBoundaryCategoryIcon = (category?: string) => {
-    switch (category) {
-      case 'Communication':
-        return '💬';
-      case 'Privacy':
-        return '🔒';
-      case 'Social Life':
-        return '👥';
-      case 'Time Together':
-        return '⏳';
-      case 'Money':
-        return '💰';
-      case 'Family':
-        return '🏡';
-      case 'Online/Social Media':
-        return '📱';
-      case 'Personal Space':
-        return '🧘';
-      default:
-        return '🤝';
-    }
+    return '';
   };
 
   // NOT CONNECTED / NO CONNECTION STATE
@@ -647,31 +621,24 @@ export const CoupleSpaceView: React.FC = () => {
 
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 max-w-sm mx-auto animate-fadeIn">
-        <div className="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-4 shadow-xl shadow-rose-500/10">
+        <div className="w-16 h-16 rounded-3xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center mb-4 shadow-xl shadow-violet-500/10">
           <Users className="w-8 h-8" />
         </div>
         
-        <h2 className="text-xl font-bold text-white mb-2">
-          Your Connection Space is waiting.
+        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">
+          Build your first connection.
         </h2>
         
         <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
-          Invite someone important to you to start building your connection together — memories, goals, and healthy communication.
+          TRUSTLY gives you a private space for the relationships that matter.
         </p>
 
         <div className="w-full space-y-3">
           <button
             onClick={() => setShowPairingModal(true)}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 via-rose-600 to-indigo-600 text-white font-semibold text-sm shadow-[0_0_25px_rgba(244,63,94,0.3)] hover:opacity-95 active:scale-[0.985] cursor-pointer ring-1 ring-white/20 transition-all"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-pink-600 to-indigo-600 text-white font-bold text-sm shadow-[0_0_25px_rgba(168,85,247,0.3)] hover:opacity-95 active:scale-[0.985] cursor-pointer transition-all"
           >
-            Create Connection
-          </button>
-
-          <button
-            onClick={() => setShowPairingModal(true)}
-            className="w-full py-3.5 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 font-medium text-xs border border-white/10 hover:border-white/20 cursor-pointer transition-all"
-          >
-            Join with Code
+            Add Connection
           </button>
         </div>
       </div>
@@ -748,13 +715,9 @@ export const CoupleSpaceView: React.FC = () => {
   }
 
   // =========================================================================
-  // REAL COUPLE SPACE DASHBOARD (When connected)
-  // =========================================================================
-  // =========================================================================
   // REAL CONNECTION SPACE DASHBOARD (When connected)
   // =========================================================================
   const connectionLabel = getConnectionLabel(coupleSpace.connectionType);
-  const connectionEmoji = getConnectionEmoji(coupleSpace.connectionType);
   const partnerName = partnerProfile?.displayName || coupleSpace.creatorName || 'Connection Partner';
 
   const handleOpenSubView = (tab: 'memories' | 'goals' | 'dates' | 'notes' | 'boundaries' | 'conversation') => {
@@ -775,72 +738,130 @@ export const CoupleSpaceView: React.FC = () => {
     }
   };
 
+  const handleQuickAction = (actionKey: 'checkin' | 'conversation' | 'goals' | 'memories' | 'dates' | 'notes' | 'coach' | 'privacy') => {
+    switch (actionKey) {
+      case 'checkin':
+        setCheckInModalTab('new');
+        setShowCheckInModal(true);
+        break;
+      case 'conversation':
+        handleOpenSubView('conversation');
+        break;
+      case 'goals':
+        handleOpenSubView('goals');
+        break;
+      case 'memories':
+        handleOpenSubView('memories');
+        break;
+      case 'dates':
+        handleOpenSubView('dates');
+        break;
+      case 'notes':
+        handleOpenSubView('notes');
+        break;
+      case 'coach':
+        setErrorBanner("Navigate to the Coach tab in bottom navigation for full AI communication guidance!");
+        break;
+      case 'privacy':
+        setErrorBanner("Open the Privacy tab in the navigation bar to control granular sharing permissions.");
+        break;
+    }
+  };
+
+  const handleStartConversationTopic = (prompt: string) => {
+    handleOpenSubView('conversation');
+  };
+
+  const connectedDateStr = coupleSpace?.createdAt 
+    ? new Date(coupleSpace.createdAt).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    : null;
+
   // 1. RENDER OVERVIEW MODE
   if (subView === 'overview') {
     return (
       <div className="w-full space-y-6 pb-28 animate-fadeIn">
-        {/* Header Block */}
-        <div className="pt-2 flex items-center justify-between relative">
+        {/* Connection Header */}
+        <div className="pt-2 flex items-center justify-between relative border-b border-white/5 pb-4">
           <div className="flex items-center gap-3">
-            <ConnectionSwitcher onOpenPairing={(mode = 'options') => setShowPairingModal(true)} />
+            <InitialsAvatar
+              name={partnerName}
+              photoURL={partnerProfile?.photoURL}
+              size="lg"
+            />
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">
-                {partnerName}
-              </h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-300 font-semibold inline-flex items-center gap-1">
-                  <span>{connectionEmoji}</span>
-                  <span>{connectionLabel}</span>
-                </span>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                  {partnerName}
+                </h1>
                 <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span>Connected</span>
                 </span>
               </div>
+              <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
+                <span className="font-medium text-violet-300">
+                  {connectionLabel}
+                </span>
+                {connectedDateStr && (
+                  <>
+                    <span aria-hidden="true" className="text-zinc-600">·</span>
+                    <span className="text-[11px] text-zinc-400">Connected since {connectedDateStr}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Premium Three-Dot Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setShowDropdownMenu(!showDropdownMenu)}
-              className="p-2 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white transition-all cursor-pointer"
-            >
-              <span className="font-bold text-sm tracking-widest px-1">•••</span>
-            </button>
+          {/* Premium Three-Dot Menu & Switcher */}
+          <div className="flex items-center gap-2">
+            <ConnectionSwitcher onOpenPairing={(mode = 'options') => setShowPairingModal(true)} />
+            
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdownMenu(!showDropdownMenu)}
+                className="p-2.5 rounded-2xl bg-zinc-900/80 border border-white/10 text-zinc-400 hover:text-white transition-all cursor-pointer shadow-sm"
+                aria-label="Connection options"
+              >
+                <span className="font-bold text-sm tracking-widest px-0.5">•••</span>
+              </button>
 
-            {showDropdownMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-[#111116] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 animate-fadeIn space-y-1">
-                <button
-                  onClick={() => {
-                    setShowDropdownMenu(false);
-                    setShowDetailsModal(true);
-                  }}
-                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-zinc-300 hover:bg-white/5 hover:text-white transition-all cursor-pointer"
-                >
-                  Connection Details
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDropdownMenu(false);
-                    setErrorBanner("You can adjust sharing permissions for this connection directly in the Privacy Center tab.");
-                  }}
-                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-zinc-300 hover:bg-white/5 hover:text-white transition-all cursor-pointer"
-                >
-                  Privacy Settings
-                </button>
-                <div className="h-[1px] bg-white/5 my-1" />
-                <button
-                  onClick={() => {
-                    setShowDropdownMenu(false);
-                    setShowRemoveConfirm(true);
-                  }}
-                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
-                >
-                  Remove Connection
-                </button>
-              </div>
-            )}
+              {showDropdownMenu && (
+                <div className="absolute right-0 mt-2 w-52 bg-[#111116] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 animate-fadeIn space-y-1">
+                  <button
+                    onClick={() => {
+                      setShowDropdownMenu(false);
+                      setShowDetailsModal(true);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-zinc-300 hover:bg-white/5 hover:text-white transition-all cursor-pointer"
+                  >
+                    Connection Details
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDropdownMenu(false);
+                      setErrorBanner("You can adjust sharing permissions for this connection in the Privacy tab.");
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-zinc-300 hover:bg-white/5 hover:text-white transition-all cursor-pointer"
+                  >
+                    Privacy Settings
+                  </button>
+                  <div className="h-[1px] bg-white/5 my-1" />
+                  <button
+                    onClick={() => {
+                      setShowDropdownMenu(false);
+                      setShowRemoveConfirm(true);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
+                  >
+                    Remove Connection
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -857,232 +878,75 @@ export const CoupleSpaceView: React.FC = () => {
           </div>
         )}
 
-        {/* Connection Space Summary Card */}
-        <div className="glass-card rounded-3xl p-5 border border-white/10 relative overflow-hidden shadow-xl">
-          <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-indigo-500/5 pointer-events-none" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-rose-400 mb-1">Your Connection</h2>
-          <p className="text-xs text-zinc-300 leading-relaxed">
-            {coupleSpace.connectionType === 'partner'
-              ? "A private space for the two of you to communicate, share meaningful moments and build trust."
-              : `A private space for you and ${partnerName} to communicate, share meaningful moments and stay connected.`}
-          </p>
+        {/* Connection Switcher Horizontal Bar */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+              Your Connections
+            </span>
+          </div>
+          <ConnectionSelectorBar onOpenPairing={(mode = 'options') => setShowPairingModal(true)} />
         </div>
 
-        {/* Quick Actions Responsive Grid */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-violet-400" />
-            <span>Quick Actions</span>
-          </h3>
+        {/* Balanced Responsive 2-Column Grid (Desktop) / 1-Column Stack (Mobile) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Hero, Quick Actions, Conversation Starter */}
+          <div className="lg:col-span-7 space-y-6">
+            <ConnectionHero 
+              coupleSpace={coupleSpace} 
+              partnerProfile={partnerProfile} 
+            />
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-            <button
-              onClick={() => {
+            <QuickActionsGrid 
+              onAction={handleQuickAction} 
+            />
+
+            <ConversationStarterCard 
+              onTalkAboutIt={handleStartConversationTopic} 
+            />
+          </div>
+
+          {/* Right Column: Connection Pulse, Recent Activity, Shared Space */}
+          <div className="lg:col-span-5 space-y-6">
+            <ConnectionPulseSection
+              onOpenCheckIn={() => {
                 setCheckInModalTab('new');
                 setShowCheckInModal(true);
               }}
-              className="p-3 rounded-2xl bg-gradient-to-br from-violet-600/20 to-pink-600/10 border border-violet-500/30 hover:border-violet-500/60 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 shadow-md"
-            >
-              <Activity className="w-5 h-5 text-violet-400" />
-              <span className="text-[11px] font-bold text-white">Check In</span>
-            </button>
-
-            <button
-              onClick={() => handleOpenSubView('conversation')}
-              className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-rose-500/40 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5"
-            >
-              <MessageSquare className="w-5 h-5 text-rose-400" />
-              <span className="text-[11px] font-bold text-white">Conversation</span>
-            </button>
-
-            <button
-              onClick={() => handleOpenSubView('notes')}
-              className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-indigo-500/40 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5"
-            >
-              <StickyNote className="w-5 h-5 text-indigo-400" />
-              <span className="text-[11px] font-bold text-white">Shared Notes</span>
-            </button>
-
-            <button
-              onClick={() => handleOpenSubView('goals')}
-              className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-violet-500/40 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5"
-            >
-              <Target className="w-5 h-5 text-violet-400" />
-              <span className="text-[11px] font-bold text-white">Goals</span>
-            </button>
-
-            <button
-              onClick={() => handleOpenSubView('memories')}
-              className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-blue-500/40 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5"
-            >
-              <Camera className="w-5 h-5 text-blue-400" />
-              <span className="text-[11px] font-bold text-white">Memories</span>
-            </button>
-
-            <button
-              onClick={() => handleOpenSubView('dates')}
-              className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-emerald-500/40 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5"
-            >
-              <Calendar className="w-5 h-5 text-emerald-400" />
-              <span className="text-[11px] font-bold text-white">Important Dates</span>
-            </button>
-
-            <button
-              onClick={() => handleOpenSubView('boundaries')}
-              className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-amber-500/40 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5"
-            >
-              <ShieldCheck className="w-5 h-5 text-amber-400" />
-              <span className="text-[11px] font-bold text-white">Boundaries</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setErrorBanner("Toggle the Coach tab in bottom navigation for full AI communication guidance!");
+              onOpenHistory={(tab) => {
+                setCheckInModalTab(tab || 'history');
+                setShowCheckInModal(true);
               }}
-              className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-indigo-500/40 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5"
-            >
-              <Sparkles className="w-5 h-5 text-indigo-400" />
-              <span className="text-[11px] font-bold text-white">AI Coach</span>
-            </button>
-          </div>
-        </div>
+            />
 
-        {/* ===================================================================== */}
-        {/* CONNECTION PULSE SECTION */}
-        {/* ===================================================================== */}
-        <ConnectionPulseSection
-          onOpenCheckIn={() => {
-            setCheckInModalTab('new');
-            setShowCheckInModal(true);
-          }}
-          onOpenHistory={(tab) => {
-            setCheckInModalTab(tab || 'history');
-            setShowCheckInModal(true);
-          }}
-        />
-
-        {/* Stats and Shared Space Combined Container */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Connection Stats */}
-          <div className="glass-card rounded-3xl p-5 border border-white/10 space-y-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Connection Stats</span>
-            </h3>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-white/5">
-                <span className="text-zinc-400">Connection Since</span>
-                <span className="text-white font-semibold font-mono">
-                  {coupleSpace.createdAt ? new Date(coupleSpace.createdAt).toLocaleDateString() : 'Active'}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-white/5">
-                <span className="text-zinc-400">Shared Memories</span>
-                <span className="text-rose-400 font-bold font-mono">{memories.length}</span>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-white/5">
-                <span className="text-zinc-400">Shared Goals</span>
-                <span className="text-violet-400 font-bold font-mono">{goals.length}</span>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-white/5">
-                <span className="text-zinc-400">Important Dates</span>
-                <span className="text-emerald-400 font-bold font-mono">{importantDates.length}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Shared Space Cards Grid */}
-          <div className="glass-card rounded-3xl p-5 border border-white/10 space-y-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2">
-              <Users className="w-4 h-4 text-indigo-400" />
-              <span>Shared Space</span>
-            </h3>
-
-            <div className="grid grid-cols-2 gap-2 text-left">
-              <button
-                onClick={() => handleOpenSubView('memories')}
-                className="p-3 rounded-2xl bg-zinc-950/60 border border-white/5 hover:border-rose-500/40 text-left transition-all cursor-pointer"
-              >
-                <div className="text-xs font-bold text-white">Memories</div>
-                <div className="text-[10px] text-zinc-400 mt-1">{memories.length} shared moments</div>
-              </button>
-
-              <button
-                onClick={() => handleOpenSubView('goals')}
-                className="p-3 rounded-2xl bg-zinc-950/60 border border-white/5 hover:border-violet-500/40 text-left transition-all cursor-pointer"
-              >
-                <div className="text-xs font-bold text-white">Goals</div>
-                <div className="text-[10px] text-zinc-400 mt-1">{goals.length} active goals</div>
-              </button>
-
-              <button
-                onClick={() => handleOpenSubView('notes')}
-                className="p-3 rounded-2xl bg-zinc-950/60 border border-white/5 hover:border-indigo-500/40 text-left transition-all cursor-pointer"
-              >
-                <div className="text-xs font-bold text-white">Notes</div>
-                <div className="text-[10px] text-zinc-400 mt-1">{sharedNotes.length} shared notes</div>
-              </button>
-
-              <button
-                onClick={() => handleOpenSubView('boundaries')}
-                className="p-3 rounded-2xl bg-zinc-950/60 border border-white/5 hover:border-amber-500/40 text-left transition-all cursor-pointer"
-              >
-                <div className="text-xs font-bold text-white">Boundaries</div>
-                <div className="text-[10px] text-zinc-400 mt-1">{boundaries.length} boundaries</div>
-              </button>
-
-              <button
-                onClick={() => handleOpenSubView('conversation')}
-                className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/10 to-violet-500/10 border border-rose-500/20 hover:border-rose-500/40 text-left transition-all cursor-pointer col-span-2 flex items-center justify-between shadow-md"
-              >
-                <div>
-                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
-                    <span>Conversation Hub</span>
-                  </div>
-                  <div className="text-[10px] text-zinc-400 mt-1">Start meaningful topics, starters, & shared thoughts</div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-rose-400" />
-              </button>
-
-              <button
-                onClick={() => {
-                  setCheckInModalTab('history');
+            <RecentActivitySection
+              connectionId={coupleSpace.id}
+              partnerName={partnerName}
+              onOpenItem={(type) => {
+                if (type === 'checkin') {
+                  setCheckInModalTab('shared');
                   setShowCheckInModal(true);
-                }}
-                className="p-3 rounded-2xl bg-zinc-950/60 border border-white/5 hover:border-violet-500/40 text-left transition-all cursor-pointer col-span-2 flex items-center justify-between"
-              >
-                <div>
-                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-violet-400" />
-                    <span>Check-Ins & Connection Pulse</span>
-                  </div>
-                  <div className="text-[10px] text-zinc-400 mt-0.5">
-                    Reflect on how this connection feels today and view history
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
-              </button>
-            </div>
+                } else if (['memories', 'goals', 'dates', 'notes', 'boundaries', 'conversation'].includes(type)) {
+                  handleOpenSubView(type as any);
+                }
+              }}
+            />
+
+            <SharedSpaceGrid
+              memories={memories}
+              goals={goals}
+              importantDates={importantDates}
+              sharedNotes={sharedNotes}
+              boundaries={boundaries}
+              onOpenSubView={handleOpenSubView}
+            />
           </div>
         </div>
 
-        {/* Privacy Indicator */}
-        <div className="glass-card rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.03] space-y-2 relative overflow-hidden shadow-md">
-          <div className="flex items-center justify-between text-xs text-emerald-400 font-bold uppercase tracking-wider">
-            <div className="flex items-center gap-1.5">
-              <Lock className="w-4 h-4" />
-              <span>Private by Default</span>
-            </div>
-          </div>
-          <p className="text-xs text-zinc-300">
-            Only information you choose to share appears in this connection.
-          </p>
-        </div>
+        {/* Privacy Status Bar (Full Width) */}
+        <PrivacyStatusBar 
+          onOpenPrivacy={() => setErrorBanner("You can view and adjust your granular sharing controls in the Privacy Center tab.")} 
+        />
 
         {/* Connection Details Modal */}
         {showDetailsModal && (

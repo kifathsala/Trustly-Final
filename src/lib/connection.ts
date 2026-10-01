@@ -1,4 +1,5 @@
 import { CONNECTION_TYPE_OPTIONS } from '../types';
+import { getConnectionTypeImage } from '../config/images';
 
 /**
  * Returns a human-friendly label for a given connectionType string.
@@ -24,22 +25,15 @@ export function getConnectionLabel(connectionType?: string): string {
 }
 
 /**
- * Returns a subtle emoji icon for the connection type.
+ * Returns the card image for the connection type.
+ */
+export function getConnectionImage(connectionType?: string): string {
+  return getConnectionTypeImage(connectionType);
+}
+
+/**
+ * Kept for backwards compatibility, returns empty string or clean icon key instead of emoji.
  */
 export function getConnectionEmoji(connectionType?: string): string {
-  if (!connectionType) return '🔗';
-  const matched = CONNECTION_TYPE_OPTIONS.find(
-    opt => opt.type === connectionType || opt.label.toLowerCase() === connectionType.toLowerCase()
-  );
-  if (matched) return matched.emoji;
-
-  switch (connectionType.toLowerCase()) {
-    case 'partner': return '❤️';
-    case 'parent': return '👨‍👩‍👦';
-    case 'family': return '🏠';
-    case 'best_friend': return '🫂';
-    case 'friend': return '🤝';
-    case 'crush': return '💭';
-    default: return '✨';
-  }
+  return '';
 }
