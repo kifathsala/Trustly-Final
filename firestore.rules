@@ -51,6 +51,12 @@ service cloud.firestore {
       match /conversationStarters/{starterId} {
         allow read, write: if isOwner(userId) || isMasterAdmin();
       }
+
+      // Secure notifications collection
+      match /notifications/{notificationId} {
+        allow read, update, delete: if isOwner(userId) || isMasterAdmin();
+        allow create: if isSignedIn();
+      }
     }
 
     // Couples Space
@@ -134,11 +140,18 @@ service cloud.firestore {
         );
       }
 
-      // Shared Check-In Summaries (accessible by verified couple members, sanitized summary only)
+      // Shared Check-Ins (accessible by verified connection members only)
       match /sharedCheckIns/{checkInId} {
         allow read: if isCoupleMember(coupleId);
-        allow create: if isCoupleMember(coupleId) && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || isMasterAdmin());
+        allow create: if isCoupleMember(coupleId) && (
+          request.resource.data.userId == request.auth.uid || 
+          request.resource.data.createdBy == request.auth.uid
+        );
+        allow update, delete: if isCoupleMember(coupleId) && (
+          resource.data.userId == request.auth.uid || 
+          resource.data.createdBy == request.auth.uid || 
+          isMasterAdmin()
+        );
       }
 
       // Shared Conversation Starters (accessible by verified couple members)
@@ -149,9 +162,56 @@ service cloud.firestore {
       }
 
       match /checkIns/{checkInId} {
-        allow read: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || resource.data.isShared == true || resource.data.shareSummary == true || isMasterAdmin());
-        allow create: if isCoupleMember(coupleId) && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || isMasterAdmin());
+        allow read: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || resource.data.createdBy == request.auth.uid || resource.data.isShared == true || resource.data.shareSummary == true || isMasterAdmin());
+        allow create: if isCoupleMember(coupleId) && (request.resource.data.userId == request.auth.uid || request.resource.data.createdBy == request.auth.uid);
+        allow update, delete: if isCoupleMember(coupleId) && (resource.data.userId == request.auth.uid || resource.data.createdBy == request.auth.uid || isMasterAdmin());
+      }
+
+      // Secure connection conversation hub
+      match /conversations/{conversationId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid);
+        allow update, delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || isMasterAdmin());
+
+        match /responses/{responseId} {
+          allow read: if isCoupleMember(coupleId);
+          allow create: if isCoupleMember(coupleId) && (request.resource.data.createdBy == request.auth.uid);
+          allow update, delete: if isCoupleMember(coupleId) && (resource.data.createdBy == request.auth.uid || isMasterAdmin());
+        }
+      }
+    }
+
+    // Connections Space (Alias for couples space)
+    match /connections/{connectionId} {
+      allow read: if isSignedIn() && (
+        resource.data.status == 'waiting' || 
+        request.auth.uid in resource.data.memberIds || 
+        isCoupleMember(connectionId) ||
+        isMasterAdmin()
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        request.auth.uid in resource.data.memberIds ||
+        isCoupleMember(connectionId) ||
+        isMasterAdmin()
+      );
+      allow delete: if isMasterAdmin() || (isSignedIn() && (resource.data.creatorId == request.auth.uid || resource.data.createdBy == request.auth.uid));
+
+      match /sharedCheckIns/{checkInId} {
+        allow read: if isCoupleMember(connectionId);
+        allow create: if isCoupleMember(connectionId) && (
+          request.resource.data.userId == request.auth.uid || 
+          request.resource.data.createdBy == request.auth.uid
+        );
+        allow update, delete: if isCoupleMember(connectionId) && (
+          resource.data.userId == request.auth.uid || 
+          resource.data.createdBy == request.auth.uid || 
+          isMasterAdmin()
+        );
+      }
+
+      match /{subPath=**} {
+        allow read, write: if isCoupleMember(connectionId);
       }
     }
 

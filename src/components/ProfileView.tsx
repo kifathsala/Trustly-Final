@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { DEFAULT_PREFERENCES, NotificationPreferences } from '../lib/notifications';
 import { 
   User, 
   ShieldCheck, 
@@ -61,6 +63,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
+  // Notifications preferences
+  const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFERENCES);
+  const [isUpdatingPrefs, setIsUpdatingPrefs] = useState(false);
+
   // Sync state when userProfile loads/updates
   useEffect(() => {
     if (userProfile) {
@@ -73,20 +79,30 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         setBirthYear(parsed.year ? String(parsed.year) : '');
       }
       setShareBirthday(Boolean(userProfile.shareBirthday));
+      if (userProfile.notificationPreferences) {
+        setPrefs({ ...DEFAULT_PREFERENCES, ...userProfile.notificationPreferences });
+      }
     }
   }, [userProfile]);
 
-  const openNotifications = async () => {
-    setShowNotifModal(true);
-    if (!userProfile) return;
+  const handleTogglePreference = async (key: keyof NotificationPreferences) => {
+    if (!userProfile?.uid) return;
+    setIsUpdatingPrefs(true);
+    const updated = { ...prefs, [key]: !prefs[key] };
+    setPrefs(updated);
+
     try {
-      const snap = await import('firebase/firestore').then(({ collection, getDocs }) => 
-        getDocs(collection(db, 'notifications', userProfile.uid, 'items'))
-      );
-      setNotifications(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch {
-      setNotifications([]);
+      const userRef = doc(db, 'users', userProfile.uid);
+      await updateDoc(userRef, { notificationPreferences: updated });
+    } catch (e) {
+      console.error("Failed to update preference:", e);
+    } finally {
+      setIsUpdatingPrefs(false);
     }
+  };
+
+  const openNotifications = () => {
+    setShowNotifModal(true);
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -574,14 +590,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <span className="text-[10px] text-zinc-400 mt-1 block">TRUSTLY PWA &bull; v1.0.0</span>
       </div>
 
-      {/* Real Notifications Modal */}
+      {/* Notification Preferences Modal */}
       {showNotifModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-sm bg-[#121216] border border-white/10 rounded-3xl p-6 shadow-2xl relative">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+          <div className="w-full max-w-sm bg-[#111116] border border-white/10 rounded-3xl p-6 shadow-2xl relative space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 text-rose-400" />
-                <h3 className="text-sm font-bold text-white">Notifications</h3>
+                <h3 className="text-sm font-bold text-white">Notification Preferences</h3>
               </div>
               <button 
                 onClick={() => setShowNotifModal(false)}
@@ -591,30 +607,52 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </button>
             </div>
 
-            {notifications.length === 0 ? (
-              <div className="py-8 text-center text-xs text-zinc-400 space-y-2">
-                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-zinc-400">
-                  <Bell className="w-5 h-5 opacity-60" />
-                </div>
-                <p className="font-semibold text-zinc-300">No new notifications.</p>
-                <p className="text-[11px] text-zinc-400">When your partner shares reflections or completes check-ins, updates will appear here.</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5 max-h-60 overflow-y-auto">
-                {notifications.map((n) => (
-                  <div key={n.id} className="p-3 rounded-xl bg-zinc-950/70 border border-white/5 text-xs">
-                    <h5 className="font-semibold text-white">{n.title}</h5>
-                    <p className="text-zinc-300 text-[11px] mt-0.5">{n.message}</p>
+            <div className="p-3 rounded-2xl bg-zinc-950/60 border border-white/5 space-y-1">
+              <span className="text-[10px] uppercase tracking-wider text-rose-400 font-semibold flex items-center gap-1">
+                <Lock className="w-3.5 h-3.5 text-rose-400" />
+                <span>Privacy-First Toggles</span>
+              </span>
+              <p className="text-[10px] text-zinc-400 leading-relaxed">
+                Only shared connection actions or dates trigger notifications. Private reflections remain 100% private.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {[
+                { key: 'invitations', label: 'Connection Invitations', desc: 'When codes are waiting or connections are accepted' },
+                { key: 'sharedActivity', label: 'Shared Activity', desc: 'New memories, notes & proposed boundaries' },
+                { key: 'importantDates', label: 'Important Dates', desc: 'Milestone events & date counts' },
+                { key: 'goals', label: 'Goals & Milestones', desc: 'Habits and joint completion celebrations' },
+                { key: 'checkIns', label: 'Check-In Reflections', desc: 'Consensually shared sanitized summaries' },
+              ].map((pref) => (
+                <div 
+                  key={pref.key}
+                  className="p-3 rounded-2xl bg-zinc-900/60 border border-white/5 flex items-center justify-between gap-3"
+                >
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-white">{pref.label}</h4>
+                    <p className="text-[9px] text-zinc-400 leading-snug">{pref.desc}</p>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      disabled={isUpdatingPrefs}
+                      checked={prefs[pref.key as keyof NotificationPreferences]}
+                      onChange={() => handleTogglePreference(pref.key as keyof NotificationPreferences)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-4.5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-rose-500" />
+                  </label>
+                </div>
+              ))}
+            </div>
 
             <button
               onClick={() => setShowNotifModal(false)}
-              className="w-full mt-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold border border-white/5"
+              className="w-full py-3 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-semibold text-xs border border-white/5 cursor-pointer"
             >
-              Close
+              Save & Close
             </button>
           </div>
         </div>

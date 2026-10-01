@@ -214,12 +214,32 @@
         "createdAt": { "type": "string" }
       },
       "required": ["coupleId", "senderId", "recipientId", "message", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Secure connection-related user notification",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "connectionId": { "type": "string" },
+        "referenceId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "readAt": { "type": "string" },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["type", "title", "body", "createdAt", "isRead"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "Private user profile documents"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Secure user-specific notifications and reminders"
     },
     "/users/{userId}/checkIns/{checkInId}": {
       "schema": "UserCheckIn",

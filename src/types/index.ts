@@ -12,16 +12,17 @@ export interface ConnectionTypeOption {
   label: string;
   emoji: string;
   description: string;
+  image?: string;
 }
 
 export const CONNECTION_TYPE_OPTIONS: ConnectionTypeOption[] = [
-  { type: 'partner', label: 'Partner / Lover', emoji: '❤️', description: 'Romantic partner, spouse, or lover' },
-  { type: 'parent', label: 'Parent', emoji: '👨‍👩‍👦', description: 'Mom, dad, or parental figure' },
-  { type: 'family', label: 'Family Member', emoji: '👨‍👩‍👧', description: 'Sibling, relative, or child' },
-  { type: 'best_friend', label: 'Best Friend', emoji: '🧑‍🤝‍🧑', description: 'Closest friend and confidant' },
-  { type: 'friend', label: 'Friend', emoji: '🤝', description: 'Good friend or peer' },
-  { type: 'crush', label: 'Crush', emoji: '💭', description: 'Someone you are interested in' },
-  { type: 'other', label: 'Other', emoji: '👥', description: 'Any meaningful relationship' },
+  { type: 'partner', label: 'Partner / Lover', emoji: '❤️', description: 'Romantic partner, spouse, or lover', image: '/src/assets/images/partner_card_1790841232180.jpg' },
+  { type: 'parent', label: 'Parent', emoji: '👨‍👩‍👦', description: 'Mom, dad, or parental figure', image: '/src/assets/images/parent_card_1790841247252.jpg' },
+  { type: 'family', label: 'Family Member', emoji: '👨‍👩‍👧', description: 'Sibling, relative, or child', image: '/src/assets/images/family_card_1790841263241.jpg' },
+  { type: 'best_friend', label: 'Best Friend', emoji: '🧑‍🤝‍🧑', description: 'Closest friend and confidant', image: '/src/assets/images/best_friend_card_1790841276366.jpg' },
+  { type: 'friend', label: 'Friend', emoji: '🤝', description: 'Good friend or peer', image: '/src/assets/images/friend_card_1790841293395.jpg' },
+  { type: 'crush', label: 'Crush', emoji: '💭', description: 'Someone you are interested in', image: '/src/assets/images/crush_card_1790841309809.jpg' },
+  { type: 'other', label: 'Other', emoji: '👥', description: 'Any meaningful relationship', image: '/src/assets/images/other_card_1790841326419.jpg' },
 ];
 
 export interface UserSubscription {
@@ -35,11 +36,20 @@ export interface UserSubscription {
   updatedAt: string | null;
 }
 
+export interface ProfilePrivacySettings {
+  shareDisplayName?: boolean;
+  sharePhoto?: boolean;
+  shareBio?: boolean;
+  shareBirthday?: boolean;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  bio?: string;
   photoURL?: string;
+  profilePrivacy?: ProfilePrivacySettings;
   relationshipStatus?: string;
   relationshipType?: string;
   connectionType?: ConnectionType | string;
@@ -55,6 +65,7 @@ export interface UserProfile {
   role?: string;
   isAdmin?: boolean;
   subscription?: UserSubscription;
+  notificationPreferences?: any;
   createdAt: string;
   updatedAt?: string;
 }
@@ -88,21 +99,78 @@ export interface CoupleSpace {
 }
 
 export type RelationshipFeeling = 
+  | 'Appreciated'
+  | 'Connected'
+  | 'Good'
+  | 'Neutral'
+  | 'Distant'
+  | 'Worried'
+  | 'Frustrated'
+  | 'Unsure'
   | 'Very connected' 
-  | 'Good' 
   | 'Okay' 
   | 'A little distant' 
   | 'Something is on my mind';
+
+export type ConnectionFeeling = RelationshipFeeling;
+
+export type CheckInArea = 
+  | 'Communication'
+  | 'Trust'
+  | 'Support'
+  | 'Quality Time'
+  | 'Appreciation'
+  | 'Boundaries'
+  | 'Family'
+  | 'Stress'
+  | 'Something Else';
+
+export interface ConnectionCheckIn {
+  id?: string;
+  connectionId: string;
+  coupleId?: string; // alias for backward compatibility
+  userId: string;
+  createdBy?: string;
+  creatorName?: string;
+  feeling: string;
+  feelingEmoji?: string;
+  areas: string[];
+  privateReflection?: string;
+  reflection?: string; // alias
+  isShared?: boolean;
+  sharedNote?: string;
+  createdAt: string;
+  updatedAt?: string;
+  date?: string;
+}
+
+export interface SharedConnectionCheckIn {
+  id?: string;
+  connectionId: string;
+  coupleId?: string;
+  createdBy: string;
+  userId?: string;
+  creatorName?: string;
+  feeling: string;
+  feelingEmoji?: string;
+  areas: string[];
+  sharedNote?: string;
+  createdAt: string;
+  date?: string;
+}
 
 export interface UserCheckIn {
   id?: string;
   userId: string;
   coupleId?: string | null;
-  feeling: RelationshipFeeling;
-  feelingEmoji: string;
+  connectionId?: string | null;
+  feeling: string | RelationshipFeeling;
+  feelingEmoji?: string;
   areas: string[];
   reflection?: string; // Private by default, strictly never shared to partner
-  shareWithPartner: boolean;
+  privateReflection?: string;
+  shareWithPartner?: boolean;
+  isShared?: boolean;
   sharedSummary?: string | null; // Sanitized neutral reflection for partner
   date: string; // YYYY-MM-DD
   createdAt: string;
@@ -112,12 +180,15 @@ export interface UserCheckIn {
 export interface SharedCheckInSummary {
   id: string;
   coupleId: string;
+  connectionId?: string;
   userId: string;
   userDisplayName?: string;
-  feeling: RelationshipFeeling;
-  feelingEmoji: string;
+  creatorName?: string;
+  feeling: string | RelationshipFeeling;
+  feelingEmoji?: string;
   areas: string[];
-  sharedSummary: string;
+  sharedSummary?: string;
+  sharedNote?: string;
   date: string;
   createdAt: string;
 }
@@ -191,22 +262,47 @@ export interface TrustCheckDoc {
   createdAt: string;
 }
 
+export type BoundaryCategory = 
+  | 'Communication'
+  | 'Privacy'
+  | 'Time'
+  | 'Personal Space'
+  | 'Family'
+  | 'Social Media'
+  | 'Money'
+  | 'Plans'
+  | 'Other';
+
+export type BoundaryStatus = 'discussion' | 'agreed' | 'review';
+
+export interface BoundaryAgreementHistoryItem {
+  action: 'created' | 'agreed' | 'discussion_requested' | 'review_requested' | 'updated';
+  userId: string;
+  userName: string;
+  timestamp: string;
+  note?: string;
+}
+
 export interface BoundaryItem {
   id?: string;
   coupleId: string;
   creatorId?: string;
   createdBy: string;
   creatorName?: string;
-  category: 'Communication' | 'Privacy' | 'Social Life' | 'Time Together' | 'Money' | 'Family' | 'Online/Social Media' | 'Personal Space' | 'Other' | string;
+  category: BoundaryCategory | string;
   title: string;
-  description?: string;
+  description: string;
   details?: string;
   handling?: string;
-  status: 'pending' | 'discussing' | 'agreed' | 'review' | 'declined';
-  agreements?: Record<string, boolean>;
-  agreedBy?: string;
-  agreedByName?: string;
+  status: BoundaryStatus | string;
+  agreedBy?: string[]; // UIDs of members who explicitly agreed
+  agreedByNames?: Record<string, string>;
   agreedAt?: string;
+  discussionNote?: string;
+  discussionRequestedBy?: string;
+  discussionRequestedByName?: string;
+  discussionRequestedAt?: string;
+  history?: BoundaryAgreementHistoryItem[];
   createdAt: string;
   updatedAt?: string;
 }
@@ -267,6 +363,14 @@ export interface CoupleGoal {
   updatedAt?: string;
 }
 
+export type ImportantDateType = 
+  | 'Birthday' 
+  | 'Anniversary' 
+  | 'Family Event' 
+  | 'Friendship' 
+  | 'Milestone' 
+  | 'Custom';
+
 export interface ImportantDate {
   id?: string;
   coupleId: string;
@@ -275,14 +379,18 @@ export interface ImportantDate {
   creatorName?: string;
   title: string;
   date: string;
+  type?: ImportantDateType | string;
+  category?: string;
   description?: string;
+  notes?: string;
   repeatYearly?: boolean;
-  reminder?: string;
+  reminder?: 'none' | '1_day' | '3_days' | '7_days' | string;
   reminderDays?: number;
-  category?: 'Anniversary' | 'Birthday' | 'First Meeting' | 'Custom Date' | 'Milestone' | 'Special Day' | 'Trip' | 'Other';
   createdAt: string;
   updatedAt?: string;
 }
+
+export type SharedNoteCategory = 'General' | 'Plans' | 'Tasks' | 'Ideas' | 'Important' | 'Other';
 
 export interface SharedNote {
   id?: string;
@@ -292,9 +400,12 @@ export interface SharedNote {
   creatorName?: string;
   title: string;
   content: string;
+  category?: SharedNoteCategory | string;
   color?: string;
   createdAt: string;
   updatedAt?: string;
+  updatedBy?: string;
+  updatedByName?: string;
 }
 
 export interface AppNotification {

@@ -24,6 +24,7 @@ import { SubscriptionSettingsView } from './components/SubscriptionSettingsView'
 import { PricingModal } from './components/PricingModal';
 import { UpgradeModal } from './components/UpgradeModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { NotificationCenter } from './components/NotificationCenter';
 
 function MainApp() {
   const { currentUser, userProfile, loading, updateUserProfile } = useAuth();
@@ -141,7 +142,26 @@ function MainApp() {
   return (
     <div className="min-h-screen bg-[#070709] text-zinc-100 flex flex-col justify-between selection:bg-rose-500/20 selection:text-rose-200">
       <OfflineIndicator />
-      <main className="max-w-md w-full mx-auto px-4 pt-4 flex-1">
+      <main className="max-w-md sm:max-w-xl md:max-w-3xl lg:max-w-5xl w-full mx-auto px-4 sm:px-6 pt-4 pb-32 flex-1">
+        {/* Global Premium Header Bar */}
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-violet-600 flex items-center justify-center text-sm shadow-md shadow-rose-500/10">
+              ❤️
+            </div>
+            <div>
+              <span className="font-extrabold text-sm tracking-widest text-white uppercase">
+                TRUSTLY
+              </span>
+              <span className="block text-[8px] tracking-wider text-zinc-500 font-extrabold uppercase">
+                Privacy-First Space
+              </span>
+            </div>
+          </div>
+
+          <NotificationCenter onNavigateTab={setActiveTab} />
+        </div>
+
         {activeTab === 'home' && (
           <HomeDashboard 
             onNavigateTab={(tab) => {

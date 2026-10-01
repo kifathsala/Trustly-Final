@@ -28,8 +28,10 @@ import {
 import { DailyCheckInModal } from './DailyCheckInModal';
 import { ConversationStartersModal } from './ConversationStartersModal';
 import { CoupleGoalsModal } from './CoupleGoalsModal';
+import { ConnectionSwitcher } from './ConnectionSwitcher';
 import { isBirthdayToday } from '../lib/birthday';
 import { generateBirthdayMessageCoach } from '../lib/gemini';
+import { calculateDateDetails, getDateTypeDetails } from '../lib/dates';
 import { 
   Heart, 
   Sparkles, 
@@ -80,6 +82,21 @@ interface ActivityItem {
   subtitle: string;
   dateStr: string;
   icon: string;
+  space: CoupleSpace;
+}
+
+interface UpcomingDateItem {
+  id: string;
+  title: string;
+  type: string;
+  emoji: string;
+  connectionContext: string;
+  countdownText: string;
+  formattedDate: string;
+  diffDays: number;
+  isToday: boolean;
+  isTomorrow: boolean;
+  space: CoupleSpace;
 }
 
 export const HomeDashboard: React.FC<HomeDashboardProps> = ({ 
@@ -128,6 +145,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
   // Recent Activity Feed state
   const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
+  const [upcomingDates, setUpcomingDates] = useState<UpcomingDateItem[]>([]);
 
   const todayDateStr = new Date().toISOString().split('T')[0];
 
@@ -204,9 +222,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         setNotifications([]);
       }
 
-      // 5. Load real recent activity if user has active space
-      if (coupleSpace?.id) {
-        await loadRealRecentActivity(coupleSpace.id);
+      // 5. Load real recent activity if user has active connections
+      if (connList.length > 0) {
+        await loadRealRecentActivity(connList);
       } else {
         setRecentActivities([]);
       }
@@ -218,58 +236,88 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
     }
   };
 
-  const loadRealRecentActivity = async (spaceId: string) => {
+  const loadRealRecentActivity = async (connectionsList: UserConnectionData[]) => {
     const activities: ActivityItem[] = [];
+    const allUpcomingDates: UpcomingDateItem[] = [];
 
-    try {
-      // a. Shared Memories
-      const memSnap = await getDocs(query(collection(db, 'couples', spaceId, 'memories'), limit(5)));
-      memSnap.docs.forEach(d => {
-        const data = d.data() as SharedMemory;
-        activities.push({
-          id: d.id,
-          type: 'memory',
-          title: data.title || 'Shared Memory',
-          subtitle: data.description ? `"${data.description.slice(0, 40)}..."` : 'Added a new memory to space',
-          dateStr: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently',
-          icon: '📸'
+    for (const conn of connectionsList) {
+      const space = conn.space;
+      const partnerName = conn.partner?.displayName || space.creatorName || 'Connection';
+      const label = getConnectionTypeBadge(space.connectionType).label;
+      const prefix = `${partnerName} · ${label}`;
+
+      try {
+        // a. Shared Memories
+        const memSnap = await getDocs(query(collection(db, 'couples', space.id, 'memories'), limit(3)));
+        memSnap.docs.forEach(d => {
+          const data = d.data() as SharedMemory;
+          activities.push({
+            id: d.id,
+            type: 'memory',
+            title: `${prefix} - ${data.title || 'Shared Memory'}`,
+            subtitle: data.description ? `"${data.description.slice(0, 40)}${data.description.length > 40 ? '...' : ''}"` : 'Added a new memory to space',
+            dateStr: data.date || (data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently'),
+            icon: '📸',
+            space: space
+          });
         });
-      });
 
-      // b. Goals
-      const goalSnap = await getDocs(query(collection(db, 'couples', spaceId, 'goals'), limit(5)));
-      goalSnap.docs.forEach(d => {
-        const data = d.data() as CoupleGoal;
-        activities.push({
-          id: d.id,
-          type: 'goal',
-          title: data.title || 'Shared Goal',
-          subtitle: data.status === 'completed' ? 'Goal marked as completed! 🎉' : 'Active goal in progress',
-          dateStr: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently',
-          icon: '🎯'
+        // b. Goals
+        const goalSnap = await getDocs(query(collection(db, 'couples', space.id, 'goals'), limit(3)));
+        goalSnap.docs.forEach(d => {
+          const data = d.data() as CoupleGoal;
+          activities.push({
+            id: d.id,
+            type: 'goal',
+            title: `${prefix} - ${data.title || 'Shared Goal'}`,
+            subtitle: data.status === 'completed' ? 'Goal marked as completed! 🎉' : 'Active goal in progress',
+            dateStr: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently',
+            icon: '🎯',
+            space: space
+          });
         });
-      });
 
-      // c. Important Dates
-      const dateSnap = await getDocs(query(collection(db, 'couples', spaceId, 'importantDates'), limit(5)));
-      dateSnap.docs.forEach(d => {
-        const data = d.data() as ImportantDate;
-        activities.push({
-          id: d.id,
-          type: 'date',
-          title: data.title || 'Important Date',
-          subtitle: data.date ? `Scheduled for ${data.date}` : 'Added important date',
-          dateStr: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'Recently',
-          icon: '📅'
+        // c. Important Dates
+        const dateSnap = await getDocs(query(collection(db, 'couples', space.id, 'importantDates'), limit(5)));
+        dateSnap.docs.forEach(d => {
+          const data = d.data() as ImportantDate;
+          const dateDetails = calculateDateDetails(data.date, data.repeatYearly);
+          const typeDetails = getDateTypeDetails(data.type || data.category);
+
+          activities.push({
+            id: d.id,
+            type: 'date',
+            title: `${prefix} - ${data.title || 'Important Date'}`,
+            subtitle: `${typeDetails.label} · ${dateDetails.countdownText}`,
+            dateStr: data.date,
+            icon: typeDetails.emoji,
+            space: space
+          });
+
+          if (dateDetails.diffDays >= 0) {
+            allUpcomingDates.push({
+              id: d.id,
+              title: data.title || 'Important Date',
+              type: typeDetails.label,
+              emoji: typeDetails.emoji,
+              connectionContext: prefix,
+              countdownText: dateDetails.countdownText,
+              formattedDate: dateDetails.formattedDate,
+              diffDays: dateDetails.diffDays,
+              isToday: dateDetails.isToday,
+              isTomorrow: dateDetails.isTomorrow,
+              space: space
+            });
+          }
         });
-      });
-
-      // Sort by newest date if possible
-      setRecentActivities(activities.slice(0, 4));
-    } catch (e) {
-      console.warn("Notice loading recent activity:", e);
-      setRecentActivities([]);
+      } catch (e) {
+        console.warn(`Notice loading recent activity for space ${space.id}:`, e);
+      }
     }
+
+    allUpcomingDates.sort((a, b) => a.diffDays - b.diffDays);
+    setUpcomingDates(allUpcomingDates.slice(0, 4));
+    setRecentActivities(activities.slice(0, 5));
   };
 
   const getConnectionTypeBadge = (typeStr?: string) => {
@@ -306,18 +354,19 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
   if (loadingData) {
     return (
-      <div className="space-y-6 pb-24 animate-pulse max-w-md mx-auto">
+      <div className="w-full space-y-6 pb-24 animate-pulse">
         <div className="flex items-center justify-between pt-2">
           <div className="space-y-2">
             <div className="h-3 w-24 bg-white/10 rounded-full" />
             <div className="h-7 w-48 bg-white/10 rounded-xl" />
             <div className="h-3 w-56 bg-white/5 rounded-full" />
           </div>
-          <div className="h-10 w-10 bg-white/10 rounded-full" />
+          <div className="h-10 w-28 bg-white/10 rounded-full" />
         </div>
         <div className="h-32 rounded-3xl bg-zinc-900/60 border border-white/5" />
         <div className="h-36 rounded-3xl bg-zinc-900/60 border border-white/5" />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="h-20 rounded-2xl bg-zinc-900/60 border border-white/5" />
           <div className="h-20 rounded-2xl bg-zinc-900/60 border border-white/5" />
           <div className="h-20 rounded-2xl bg-zinc-900/60 border border-white/5" />
         </div>
@@ -326,11 +375,11 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   }
 
   return (
-    <div className="space-y-6 pb-28 max-w-md mx-auto animate-fadeIn">
+    <div className="w-full space-y-6 pb-28 animate-fadeIn">
       {/* ========================================================= */}
       {/* 1. HEADER */}
       {/* ========================================================= */}
-      <div className="flex items-start justify-between pt-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
         <div>
           <div className="flex items-center gap-2 mb-1">
             {/* Abstract TRUSTLY Connection Icon */}
@@ -357,19 +406,23 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </p>
         </div>
 
-        {/* Notification Bell */}
-        <button
-          onClick={() => setShowNotificationsModal(true)}
-          className="p-2.5 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-rose-500/30 text-zinc-300 hover:text-white transition-all relative cursor-pointer"
-          title="Notifications"
-        >
-          <Bell className="w-4.5 h-4.5" />
-          {notifications.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-[9px] font-bold text-white flex items-center justify-center shadow-md">
-              {notifications.length}
-            </span>
-          )}
-        </button>
+        {/* Switcher & Notification Bell */}
+        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+          <ConnectionSwitcher onOpenPairing={(mode) => onOpenPairing ? onOpenPairing(mode) : onNavigateTab('connections')} />
+
+          <button
+            onClick={() => setShowNotificationsModal(true)}
+            className="p-2.5 rounded-2xl bg-zinc-900/80 border border-white/10 hover:border-rose-500/30 text-zinc-300 hover:text-white transition-all relative cursor-pointer"
+            title="Notifications"
+          >
+            <Bell className="w-4.5 h-4.5" />
+            {notifications.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-[9px] font-bold text-white flex items-center justify-center shadow-md">
+                {notifications.length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* ========================================================= */}
@@ -432,7 +485,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
         ) : (
           /* List of Real User Connections */
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {userConnections.map((conn) => {
               const badge = getConnectionTypeBadge(conn.space.connectionType);
               const partnerName = conn.partner?.displayName || conn.space.creatorName || 'Connection';
@@ -686,6 +739,59 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       </div>
 
       {/* ========================================================= */}
+      {/* 4.5. UPCOMING DATES ACROSS ALL CONNECTIONS */}
+      {/* ========================================================= */}
+      {upcomingDates.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-purple-400" />
+              <span>Upcoming</span>
+            </h2>
+          </div>
+
+          <div className="space-y-2">
+            {upcomingDates.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => {
+                  if (item.space) {
+                    setCoupleSpace(item.space);
+                  }
+                  onNavigateTab('couple');
+                }}
+                className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-purple-500/30 transition-all flex items-center justify-between cursor-pointer group shadow-sm text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl shrink-0">{item.emoji}</span>
+                  <div>
+                    <div className="font-semibold text-xs text-white group-hover:text-purple-300 transition-colors">
+                      {item.title}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">
+                      {item.connectionContext}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    item.isToday
+                      ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
+                      : item.isTomorrow
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                  }`}>
+                    {item.countdownText}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* 5. RECENT ACTIVITY */}
       {/* ========================================================= */}
       <div className="space-y-3">
@@ -715,7 +821,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             {recentActivities.map((act) => (
               <div
                 key={act.id}
-                onClick={() => onNavigateTab('couple')}
+                onClick={() => {
+                  if (act.space) {
+                    setCoupleSpace(act.space);
+                  }
+                  onNavigateTab('couple');
+                }}
                 className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-white/15 transition-all flex items-center justify-between cursor-pointer group"
               >
                 <div className="flex items-center gap-3">

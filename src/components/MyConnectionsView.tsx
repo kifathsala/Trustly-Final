@@ -102,7 +102,7 @@ export const MyConnectionsView: React.FC<MyConnectionsViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-28 max-w-md mx-auto animate-fadeIn">
+    <div className="w-full space-y-6 pb-28 animate-fadeIn">
       {/* Top Header */}
       <div className="pt-2 flex items-center justify-between">
         <div>
@@ -157,7 +157,7 @@ export const MyConnectionsView: React.FC<MyConnectionsViewProps> = ({
         </div>
       ) : (
         /* Connections List */
-        <div className="space-y-3.5 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
           {connections.map((conn) => {
             const isCurrentActive = coupleSpace?.id === conn.space.id;
             const badge = getBadgeDetails(conn.space.connectionType);

@@ -76,8 +76,15 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const todayDateStr = new Date().toISOString().split('T')[0];
 
   const feelings: { label: RelationshipFeeling; emoji: string; desc: string }[] = [
+    { label: 'Appreciated', emoji: '❤️', desc: 'Feeling valued, seen, and cared for' },
+    { label: 'Connected', emoji: '😊', desc: 'In tune, close, and emotionally aligned' },
+    { label: 'Good', emoji: '🙂', desc: 'Comfortable, positive, and steady' },
+    { label: 'Neutral', emoji: '😐', desc: 'Day-to-day routine, neither high nor low' },
+    { label: 'Distant', emoji: '😔', desc: 'Feeling some physical or emotional space' },
+    { label: 'Worried', emoji: '😟', desc: 'Concerned about something on your mind' },
+    { label: 'Frustrated', emoji: '😤', desc: 'Encountering friction or misunderstandings' },
+    { label: 'Unsure', emoji: '💭', desc: 'Processing thoughts or mixed feelings' },
     { label: 'Very connected', emoji: '❤️', desc: 'Feeling deep closeness and mutual warmth' },
-    { label: 'Good', emoji: '🙂', desc: 'Things feel comfortable and solid' },
     { label: 'Okay', emoji: '😐', desc: 'Neutral, getting through everyday routines' },
     { label: 'A little distant', emoji: '😕', desc: 'Noticing some emotional or communication space' },
     { label: 'Something is on my mind', emoji: '💭', desc: 'Holding thoughts or feelings worth exploring' }
@@ -86,11 +93,12 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const areasList = [
     'Communication',
     'Trust',
+    'Support',
     'Quality Time',
-    'Affection',
+    'Appreciation',
+    'Boundaries',
     'Family',
     'Stress',
-    'Money',
     'Something Else'
   ];
 
@@ -109,12 +117,12 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       const snap = await getDoc(checkInRef);
       if (snap.exists()) {
         const data = snap.data() as UserCheckIn;
-        setSelectedFeeling(data.feeling);
+        setSelectedFeeling(data.feeling as RelationshipFeeling);
         setSelectedEmoji(data.feelingEmoji || '❤️');
         setSelectedAreas(data.areas || []);
         setReflection(data.reflection || '');
         setShareChoice(data.shareWithPartner ? 'summary' : 'private');
-        setCustomSummary(data.sharedSummary || generateNeutralSummary(data.feeling, data.areas || []));
+        setCustomSummary(data.sharedSummary || generateNeutralSummary(data.feeling as RelationshipFeeling, data.areas || []));
       } else {
         // Defaults
         setSelectedFeeling('Very connected');
@@ -201,11 +209,14 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         id: todayDateStr,
         userId: userProfile.uid,
         coupleId: coupleSpace?.id || null,
+        connectionId: coupleSpace?.id || null,
         feeling: selectedFeeling,
         feelingEmoji: selectedEmoji,
         areas: selectedAreas,
         reflection: reflection.trim(), // Stored strictly in user private collection
+        privateReflection: reflection.trim(),
         shareWithPartner: isShared,
+        isShared: isShared,
         sharedSummary: finalSummary,
         date: todayDateStr,
         createdAt: new Date().toISOString(),
@@ -222,12 +233,15 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         const sharedSummaryDoc: SharedCheckInSummary = {
           id: sharedDocId,
           coupleId: coupleSpace.id,
+          connectionId: coupleSpace.id,
           userId: userProfile.uid,
           userDisplayName: userProfile.displayName || 'Partner',
+          creatorName: userProfile.displayName || 'Connection Partner',
           feeling: selectedFeeling,
           feelingEmoji: selectedEmoji,
           areas: selectedAreas,
           sharedSummary: finalSummary!, // Sanitized summary ONLY — NO private reflection!
+          sharedNote: finalSummary!,
           date: todayDateStr,
           createdAt: new Date().toISOString()
         };

@@ -123,7 +123,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStartTogether, onExplore
               <div className="flex flex-col items-center z-10">
                 <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[1.5px] bg-gradient-to-b from-rose-400 via-rose-500/40 to-transparent shadow-lg shadow-rose-500/15 animate-trust-node">
                   <div className="w-full h-full rounded-full bg-zinc-950 flex flex-col items-center justify-center border border-white/10">
-                    <span className="text-xl sm:text-2xl filter drop-shadow-sm">❤️</span>
+                    <span className="text-xl sm:text-2xl filter drop-shadow-sm">👤</span>
                   </div>
                   {/* Subtle inner pulse ring */}
                   <div className="absolute -inset-1 rounded-full border border-rose-500/20 animate-pulse pointer-events-none" />
@@ -159,17 +159,17 @@ export const LandingPage: React.FC<LandingProps> = ({ onStartTogether, onExplore
                 </div>
               </div>
 
-              {/* Partner Node */}
+              {/* Connection Node */}
               <div className="flex flex-col items-center z-10">
                 <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[1.5px] bg-gradient-to-b from-indigo-400 via-purple-500/40 to-transparent shadow-lg shadow-indigo-500/15 animate-trust-node [animation-delay:1.5s]">
                   <div className="w-full h-full rounded-full bg-zinc-950 flex flex-col items-center justify-center border border-white/10">
-                    <span className="text-xl sm:text-2xl filter drop-shadow-sm">💫</span>
+                    <span className="text-xl sm:text-2xl filter drop-shadow-sm">🤝</span>
                   </div>
                   {/* Subtle inner pulse ring */}
                   <div className="absolute -inset-1 rounded-full border border-indigo-500/20 animate-pulse pointer-events-none" />
                 </div>
                 <span className="text-[10px] sm:text-[11px] tracking-wider text-zinc-300 font-semibold mt-2 uppercase">
-                  Your Partner
+                  Your Connection
                 </span>
                 <span className="text-[9px] text-emerald-400 font-medium">Voluntary</span>
               </div>
@@ -180,10 +180,10 @@ export const LandingPage: React.FC<LandingProps> = ({ onStartTogether, onExplore
           {/* Section 4: Bottom Quote */}
           <div className="relative text-center pt-3 sm:pt-4 border-t border-white/5 space-y-1">
             <p className="text-xs sm:text-sm text-zinc-300 font-semibold tracking-wide">
-              Your Couple Space is waiting.
+              Your Connection Space is waiting.
             </p>
             <p className="text-[11px] sm:text-xs text-zinc-400">
-              Invite your partner to start building it together.
+              Invite someone important to you to start building your connection together.
             </p>
           </div>
         </div>
@@ -200,7 +200,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStartTogether, onExplore
               UNDERSTAND
             </span>
             <span className="text-[10px] sm:text-[11px] text-zinc-400 mt-0.5 leading-snug">
-              See what matters.
+              Understand each other better.
             </span>
           </div>
 
@@ -213,7 +213,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStartTogether, onExplore
               CONNECT
             </span>
             <span className="text-[10px] sm:text-[11px] text-zinc-400 mt-0.5 leading-snug">
-              Talk without assumptions.
+              Create meaningful conversations.
             </span>
           </div>
 
@@ -226,7 +226,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStartTogether, onExplore
               PRIVATE
             </span>
             <span className="text-[10px] sm:text-[11px] text-zinc-400 mt-0.5 leading-snug">
-              Your data stays yours.
+              Keep personal things private.
             </span>
           </div>
 

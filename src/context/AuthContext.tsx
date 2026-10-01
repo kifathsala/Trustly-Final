@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../lib/firebase';
 import { UserProfile, CoupleSpace } from '../types';
+import { sendNotification } from '../lib/notifications';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
@@ -549,6 +550,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       status: 'connected'
     };
     setCoupleSpace(updatedCouple);
+
+    // Send notifications to both members securely
+    if (creatorUid) {
+      sendNotification(creatorUid, {
+        type: 'connection_accepted',
+        title: 'Connection Accepted',
+        body: `${userProfile?.displayName || 'Someone'} accepted your connection invitation.`,
+        connectionId: coupleId
+      }).catch(console.error);
+    }
+
+    sendNotification(currentUser.uid, {
+      type: 'connection_accepted',
+      title: '● Connected',
+      body: `You are now connected with ${data.creatorName || 'your partner'}.`,
+      connectionId: coupleId
+    }).catch(console.error);
+
     return updatedCouple;
   };
 
