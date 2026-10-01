@@ -234,7 +234,7 @@ export const ConversationHub: React.FC = () => {
         if (partnerUid) {
           sendNotification(partnerUid, {
             type: 'shared_note',
-            title: 'New Shared Thought 💬',
+            title: 'New Shared Thought ',
             body: `${creatorName} shared an intentional thought on "${selectedCategory}".`,
             connectionId: coupleSpace.id
           }).catch(console.error);
@@ -291,7 +291,7 @@ export const ConversationHub: React.FC = () => {
       if (targetUid && targetUid !== currentUser.uid) {
         sendNotification(targetUid, {
           type: 'shared_note',
-          title: 'New Response 💬',
+          title: 'New Response ',
           body: `${creatorName} replied to your shared thought.`,
           connectionId: coupleSpace.id
         }).catch(console.error);
@@ -564,7 +564,7 @@ export const ConversationHub: React.FC = () => {
                     >
                       <Lock className="w-4 h-4 text-rose-400 shrink-0" />
                       <div className="text-left">
-                        <span className="text-xs font-bold block">🔒 Private</span>
+                        <span className="text-xs font-bold block"> Private</span>
                         <span className="text-[9px] block">For your eyes only</span>
                       </div>
                     </button>
@@ -580,7 +580,7 @@ export const ConversationHub: React.FC = () => {
                     >
                       <Users className="w-4 h-4 text-rose-400 shrink-0" />
                       <div className="text-left">
-                        <span className="text-xs font-bold block">👥 Shared</span>
+                        <span className="text-xs font-bold block"> Shared</span>
                         <span className="text-[9px] block">With {partnerName}</span>
                       </div>
                     </button>

@@ -1,0 +1,27 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isCoupleMember(coupleId) {
+      return isSignedIn() && (
+        firestore.exists(/databases/(default)/documents/couples/$(coupleId)) &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/couples/$(coupleId)).data.memberIds
+      );
+    }
+
+    // Profile photos
+    match /users/{userId}/profile/{imageId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Shared memories
+    match /couples/{coupleId}/memories/{imageId} {
+      allow read: if isCoupleMember(coupleId);
+      allow write: if isCoupleMember(coupleId);
+    }
+  }
+}

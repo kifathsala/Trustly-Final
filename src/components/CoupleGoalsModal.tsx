@@ -267,7 +267,7 @@ export const CoupleGoalsModal: React.FC<CoupleGoalsModalProps> = ({
           try {
             await sendPartnerNotification(
               partnerId,
-              `Goal completed together! 🎉`,
+              `Goal completed together! `,
               `"${goal.title}" was marked as completed. Another thing you accomplished together.`,
               'goal'
             );
@@ -913,7 +913,7 @@ export const CoupleGoalsModal: React.FC<CoupleGoalsModalProps> = ({
             </div>
 
             <h3 className="text-xl font-bold text-white tracking-tight">
-              Goal completed 🎉
+              Goal completed 
             </h3>
             <p className="text-xs text-rose-200 mt-1 max-w-xs leading-relaxed">
               Another thing you accomplished together.

@@ -38,11 +38,11 @@ export const AICoachView: React.FC<AICoachViewProps> = ({ initialPrompt = '' }) 
   ]);
 
   const quickActions = [
-    { mode: 'conversation_starter', label: 'Help me start a conversation', icon: '💬', isPlus: false },
-    { mode: 'rewrite_message', label: 'Rewrite my message', icon: '✍️', isPlus: true },
-    { mode: 'understand_situation', label: 'Help me understand this situation', icon: '🔍', isPlus: false },
-    { mode: 'prepare_difficult', label: 'Prepare for difficult talk', icon: '🛡️', isPlus: true },
-    { mode: 'resolve_argument', label: 'Help us resolve argument', icon: '🕊️', isPlus: true },
+    { mode: 'conversation_starter', label: 'Help me start a conversation', icon: '', isPlus: false },
+    { mode: 'rewrite_message', label: 'Rewrite my message', icon: '', isPlus: true },
+    { mode: 'understand_situation', label: 'Help me understand this situation', icon: '', isPlus: false },
+    { mode: 'prepare_difficult', label: 'Prepare for difficult talk', icon: '', isPlus: true },
+    { mode: 'resolve_argument', label: 'Help us resolve argument', icon: '', isPlus: true },
   ] as const;
 
   const handleSelectQuickAction = (qa: typeof quickActions[number]) => {

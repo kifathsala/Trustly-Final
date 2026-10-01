@@ -126,21 +126,21 @@ export function calculateDateDetails(dateStr: string, repeatYearly: boolean = fa
 export function getDateTypeDetails(type?: string): { emoji: string; label: string; badgeClass: string } {
   const t = (type || 'Custom').toLowerCase();
   if (t.includes('birthday')) {
-    return { emoji: '🎂', label: 'Birthday', badgeClass: 'bg-rose-500/10 text-rose-300 border-rose-500/20' };
+    return { emoji: '', label: 'Birthday', badgeClass: 'bg-rose-500/10 text-rose-300 border-rose-500/20' };
   }
   if (t.includes('anniversary')) {
-    return { emoji: '🥂', label: 'Anniversary', badgeClass: 'bg-pink-500/10 text-pink-300 border-pink-500/20' };
+    return { emoji: '', label: 'Anniversary', badgeClass: 'bg-pink-500/10 text-pink-300 border-pink-500/20' };
   }
   if (t.includes('family')) {
-    return { emoji: '👨‍👩‍👧', label: 'Family Event', badgeClass: 'bg-amber-500/10 text-amber-300 border-amber-500/20' };
+    return { emoji: '', label: 'Family Event', badgeClass: 'bg-amber-500/10 text-amber-300 border-amber-500/20' };
   }
   if (t.includes('friendship') || t.includes('friend')) {
-    return { emoji: '🤝', label: 'Friendship', badgeClass: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20' };
+    return { emoji: '', label: 'Friendship', badgeClass: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20' };
   }
   if (t.includes('milestone')) {
-    return { emoji: '🏆', label: 'Milestone', badgeClass: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' };
+    return { emoji: '', label: 'Milestone', badgeClass: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' };
   }
-  return { emoji: '📅', label: 'Custom', badgeClass: 'bg-violet-500/10 text-violet-300 border-violet-500/20' };
+  return { emoji: '', label: 'Custom', badgeClass: 'bg-violet-500/10 text-violet-300 border-violet-500/20' };
 }
 
 export function getReminderLabel(reminder?: string): string {

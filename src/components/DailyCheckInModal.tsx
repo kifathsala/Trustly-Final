@@ -61,7 +61,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
 
   // Form State
   const [selectedFeeling, setSelectedFeeling] = useState<RelationshipFeeling>('Very connected');
-  const [selectedEmoji, setSelectedEmoji] = useState<string>('❤️');
+  const [selectedEmoji, setSelectedEmoji] = useState<string>('');
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [reflection, setReflection] = useState<string>('');
   const [shareChoice, setShareChoice] = useState<'private' | 'summary'>('private');
@@ -76,18 +76,18 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const todayDateStr = new Date().toISOString().split('T')[0];
 
   const feelings: { label: RelationshipFeeling; emoji: string; desc: string }[] = [
-    { label: 'Appreciated', emoji: '❤️', desc: 'Feeling valued, seen, and cared for' },
+    { label: 'Appreciated', emoji: '', desc: 'Feeling valued, seen, and cared for' },
     { label: 'Connected', emoji: '😊', desc: 'In tune, close, and emotionally aligned' },
     { label: 'Good', emoji: '🙂', desc: 'Comfortable, positive, and steady' },
     { label: 'Neutral', emoji: '😐', desc: 'Day-to-day routine, neither high nor low' },
     { label: 'Distant', emoji: '😔', desc: 'Feeling some physical or emotional space' },
-    { label: 'Worried', emoji: '😟', desc: 'Concerned about something on your mind' },
-    { label: 'Frustrated', emoji: '😤', desc: 'Encountering friction or misunderstandings' },
-    { label: 'Unsure', emoji: '💭', desc: 'Processing thoughts or mixed feelings' },
-    { label: 'Very connected', emoji: '❤️', desc: 'Feeling deep closeness and mutual warmth' },
+    { label: 'Worried', emoji: '', desc: 'Concerned about something on your mind' },
+    { label: 'Frustrated', emoji: '', desc: 'Encountering friction or misunderstandings' },
+    { label: 'Unsure', emoji: '', desc: 'Processing thoughts or mixed feelings' },
+    { label: 'Very connected', emoji: '', desc: 'Feeling deep closeness and mutual warmth' },
     { label: 'Okay', emoji: '😐', desc: 'Neutral, getting through everyday routines' },
-    { label: 'A little distant', emoji: '😕', desc: 'Noticing some emotional or communication space' },
-    { label: 'Something is on my mind', emoji: '💭', desc: 'Holding thoughts or feelings worth exploring' }
+    { label: 'A little distant', emoji: '', desc: 'Noticing some emotional or communication space' },
+    { label: 'Something is on my mind', emoji: '', desc: 'Holding thoughts or feelings worth exploring' }
   ];
 
   const areasList = [
@@ -118,7 +118,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       if (snap.exists()) {
         const data = snap.data() as UserCheckIn;
         setSelectedFeeling(data.feeling as RelationshipFeeling);
-        setSelectedEmoji(data.feelingEmoji || '❤️');
+        setSelectedEmoji(data.feelingEmoji || '');
         setSelectedAreas(data.areas || []);
         setReflection(data.reflection || '');
         setShareChoice(data.shareWithPartner ? 'summary' : 'private');
@@ -126,7 +126,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       } else {
         // Defaults
         setSelectedFeeling('Very connected');
-        setSelectedEmoji('❤️');
+        setSelectedEmoji('');
         setSelectedAreas([]);
         setReflection('');
         setShareChoice('private');
@@ -640,7 +640,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
                       />
 
                       <div className="p-2 rounded-lg bg-black/40 border border-white/5 text-[10px] text-zinc-400 leading-tight">
-                        🔒 <span className="text-zinc-300 font-medium">Important:</span> Your private reflection is not included. Only this neutral reflection will be surfaced.
+                         <span className="text-zinc-300 font-medium">Important:</span> Your private reflection is not included. Only this neutral reflection will be surfaced.
                       </div>
                     </div>
                   )}
@@ -681,12 +681,12 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
               {step === 5 && (
                 <div className="space-y-5 text-center py-4 animate-fadeIn">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(244,63,94,0.4)]">
-                    <span className="text-2xl animate-bounce">💗</span>
+                    <span className="text-2xl animate-bounce"></span>
                   </div>
 
                   <div className="space-y-1.5">
                     <h2 className="text-xl font-bold text-white tracking-tight">
-                      Check-in complete 💗
+                      Check-in complete 
                     </h2>
                     <p className="text-xs text-zinc-400 max-w-xs mx-auto leading-relaxed">
                       Take a moment to notice what you're feeling.
@@ -837,7 +837,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-base">{item.feelingEmoji || '❤️'}</span>
+            <span className="text-base">{item.feelingEmoji || ''}</span>
             <div>
               <span className="text-xs font-bold text-white block">
                 {item.feeling}

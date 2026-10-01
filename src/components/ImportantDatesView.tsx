@@ -31,6 +31,7 @@ import {
   Heart
 } from 'lucide-react';
 import { sendNotification } from '../lib/notifications';
+import { addActivityEvent } from '../lib/activity';
 import { getConnectionLabel } from '../lib/connection';
 import { 
   calculateDateDetails, 
@@ -39,14 +40,26 @@ import {
   parseLocalDate 
 } from '../lib/dates';
 
-const DATE_TYPES: { type: ImportantDateType; label: string; emoji: string }[] = [
-  { type: 'Birthday', label: 'Birthday', emoji: '🎂' },
-  { type: 'Anniversary', label: 'Anniversary', emoji: '🥂' },
-  { type: 'Family Event', label: 'Family Event', emoji: '👨‍👩‍👧' },
-  { type: 'Friendship', label: 'Friendship', emoji: '🤝' },
-  { type: 'Milestone', label: 'Milestone', emoji: '🏆' },
-  { type: 'Custom', label: 'Custom', emoji: '📅' },
+const DATE_TYPES: { type: ImportantDateType; label: string }[] = [
+  { type: 'Birthday', label: 'Birthday' },
+  { type: 'Anniversary', label: 'Anniversary' },
+  { type: 'Family Event', label: 'Family Event' },
+  { type: 'Friendship', label: 'Friendship' },
+  { type: 'Milestone', label: 'Milestone' },
+  { type: 'Custom', label: 'Custom' },
 ];
+
+const getTypeIcon = (type: string) => {
+  switch (type) {
+    case 'Birthday': return Sparkles;
+    case 'Anniversary': return Heart;
+    case 'Family Event': return Users;
+    case 'Friendship': return Users;
+    case 'Milestone': return Target;
+    default: return CalendarIcon;
+  }
+};
+
 
 export const ImportantDatesView: React.FC = () => {
   const { currentUser, userProfile, partnerProfile, coupleSpace } = useAuth();
@@ -185,12 +198,21 @@ export const ImportantDatesView: React.FC = () => {
 
         await setDoc(dateDocRef, newDate);
 
+        // Add timeline event
+        await addActivityEvent(coupleSpace.id, {
+          type: 'IMPORTANT_DATE_ADDED',
+          actorId: currentUser.uid,
+          relatedId: dateId,
+          title: 'New important date added',
+          description: `"${title.trim()}" on ${dateStr}`
+        });
+
         // Notify partner gracefully
         const partnerUid = coupleSpace.memberIds?.find(uid => uid !== currentUser.uid);
         if (partnerUid) {
           sendNotification(partnerUid, {
             type: 'date',
-            title: 'New Important Date 📅',
+            title: 'New Important Date ',
             body: `${creatorName} added "${title.trim()}" to your shared dates.`,
             connectionId: coupleSpace.id
           }).catch(console.error);

@@ -312,8 +312,8 @@ STRICT GUIDELINES:
 
   // Graceful fallback templates if AI is offline
   if (cleanNotes) {
-    return `Happy Birthday, ${safePartner}! 🎉 ${cleanNotes} I'm so grateful for you every single day and so excited to celebrate you today. Here's to making this your most beautiful year yet. ❤️`;
+    return `Happy Birthday, ${safePartner}!  ${cleanNotes} I'm so grateful for you every single day and so excited to celebrate you today. Here's to making this your most beautiful year yet. `;
   }
-  return `Happy Birthday, ${safePartner}! 🎉 Thank you for bringing so much warmth, joy, and meaning into my life. Today is all about celebrating the wonderful person you are. Wishing you the happiest day and a beautiful year ahead! ❤️`;
+  return `Happy Birthday, ${safePartner}!  Thank you for bringing so much warmth, joy, and meaning into my life. Today is all about celebrating the wonderful person you are. Wishing you the happiest day and a beautiful year ahead! `;
 }
 

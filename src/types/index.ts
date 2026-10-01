@@ -106,6 +106,17 @@ export interface CoupleSpace {
   updatedAt?: string;
 }
 
+export interface TimelineActivity {
+  id: string;
+  type: string;
+  actorId: string;
+  relatedId?: string;
+  title: string;
+  description?: string;
+  createdAt: string;
+  connectionId: string;
+}
+
 export interface ConnectionItem {
   id: string;
   space: CoupleSpace;
@@ -344,14 +355,17 @@ export interface JournalEntry {
 export interface SharedMemory {
   id?: string;
   coupleId: string;
+  connectionId?: string;
   creatorId?: string;
   createdBy: string;
   creatorName?: string;
   title: string;
   date?: string;
-  description: string;
+  memoryDate?: string;
+  description?: string;
   imageUrl?: string;
   photoURL?: string;
+  storagePath?: string;
   tag?: string;
   createdAt: string;
   updatedAt?: string;

@@ -228,7 +228,7 @@ export const BoundariesView: React.FC = () => {
         if (partnerUid) {
           sendNotification(partnerUid, {
             type: 'boundary',
-            title: 'New Boundary Proposed 🤝',
+            title: 'New Boundary Proposed ',
             body: `${currentUserName} added a boundary: "${title.trim()}".`,
             connectionId: coupleSpace.id
           }).catch(console.error);
@@ -281,7 +281,7 @@ export const BoundariesView: React.FC = () => {
         updatedAt: timestamp
       });
 
-      setSuccessToast(allMembersAgreed ? "Both agreed! Boundary confirmed 🎉" : "You agreed to this boundary.");
+      setSuccessToast(allMembersAgreed ? "Both agreed! Boundary confirmed " : "You agreed to this boundary.");
       setTimeout(() => setSuccessToast(null), 3000);
 
       // Notify partner
@@ -289,7 +289,7 @@ export const BoundariesView: React.FC = () => {
       if (partnerUid) {
         sendNotification(partnerUid, {
           type: 'boundary',
-          title: 'Boundary Agreed 🤝',
+          title: 'Boundary Agreed ',
           body: `${currentUserName} agreed to "${b.title}".`,
           connectionId: coupleSpace.id
         }).catch(console.error);
@@ -352,7 +352,7 @@ export const BoundariesView: React.FC = () => {
       if (partnerUid) {
         sendNotification(partnerUid, {
           type: 'boundary',
-          title: 'Discussion Requested 💬',
+          title: 'Discussion Requested ',
           body: `${currentUserName} would like to discuss "${discussionModalBoundary.title}".`,
           connectionId: coupleSpace.id
         }).catch(console.error);

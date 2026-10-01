@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext';
 import { ActiveConnectionProvider } from './context/ActiveConnectionContext';
@@ -14,12 +14,12 @@ import { CouplePairing } from './components/CouplePairing';
 import { BottomNav } from './components/BottomNav';
 import { HomeDashboard } from './components/HomeDashboard';
 import { TrustCheckView } from './components/TrustCheckView';
-import { AICoachView } from './components/AICoachView';
-import { CoupleSpaceView } from './components/CoupleSpaceView';
-import { BoundariesView } from './components/BoundariesView';
-import { PrivateJournalView } from './components/PrivateJournalView';
-import { PrivacyCenterView } from './components/PrivacyCenterView';
-import { MyConnectionsView } from './components/MyConnectionsView';
+const AICoachView = React.lazy(() => import('./components/AICoachView'));
+const CoupleSpaceView = React.lazy(() => import('./components/CoupleSpaceView'));
+const BoundariesView = React.lazy(() => import('./components/BoundariesView'));
+const PrivateJournalView = React.lazy(() => import('./components/PrivateJournalView'));
+const PrivacyCenterView = React.lazy(() => import('./components/PrivacyCenterView'));
+const MyConnectionsView = React.lazy(() => import('./components/MyConnectionsView'));
 import { ProfileView } from './components/ProfileView';
 import { SubscriptionSettingsView } from './components/SubscriptionSettingsView';
 import { PricingModal } from './components/PricingModal';
@@ -183,14 +183,16 @@ function MainApp() {
         )}
 
         {activeTab === 'connections' && (
-          <MyConnectionsView 
-            onOpenSpace={() => setActiveTab('couple')}
-            onOpenPairing={(mode = 'options') => {
-              setPairingInitialMode(mode);
-              setShowPairingFlow(true);
-            }}
-            onOpenPrivacy={() => setActiveTab('privacy')}
-          />
+          <Suspense fallback={<div className="p-8 text-center text-zinc-500">Loading...</div>}>
+            <MyConnectionsView 
+              onOpenSpace={() => setActiveTab('couple')}
+              onOpenPairing={(mode = 'options') => {
+                setPairingInitialMode(mode);
+                setShowPairingFlow(true);
+              }}
+              onOpenPrivacy={() => setActiveTab('privacy')}
+            />
+          </Suspense>
         )}
 
         {activeTab === 'trust' && (
@@ -198,7 +200,9 @@ function MainApp() {
         )}
 
         {activeTab === 'coach' && (
-          <AICoachView initialPrompt={coachInitialTopic} />
+          <Suspense fallback={<div className="p-8 text-center text-zinc-500">Loading...</div>}>
+            <AICoachView initialPrompt={coachInitialTopic} />
+          </Suspense>
         )}
 
         {activeTab === 'couple' && (
@@ -219,15 +223,21 @@ function MainApp() {
         )}
 
         {activeTab === 'journal' && (
-          <PrivateJournalView />
+          <Suspense fallback={<div className="p-8 text-center text-zinc-500">Loading...</div>}>
+            <PrivateJournalView />
+          </Suspense>
         )}
 
         {activeTab === 'boundaries' && (
-          <BoundariesView />
+          <Suspense fallback={<div className="p-8 text-center text-zinc-500">Loading...</div>}>
+            <BoundariesView />
+          </Suspense>
         )}
 
         {activeTab === 'privacy' && (
-          <PrivacyCenterView />
+          <Suspense fallback={<div className="p-8 text-center text-zinc-500">Loading...</div>}>
+            <PrivacyCenterView />
+          </Suspense>
         )}
       </main>
 

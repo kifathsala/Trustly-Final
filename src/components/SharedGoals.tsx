@@ -51,13 +51,13 @@ interface GoalItem {
 }
 
 const CATEGORIES = [
-  { name: 'Quality Time', icon: '❤️', desc: 'Date nights, dedicated presence, and focused time' },
-  { name: 'Communication', icon: '💬', desc: 'Active listening, weekly check-ins, and openness' },
+  { name: 'Quality Time', icon: '', desc: 'Date nights, dedicated presence, and focused time' },
+  { name: 'Communication', icon: '', desc: 'Active listening, weekly check-ins, and openness' },
   { name: 'Health & Wellness', icon: '🌱', desc: 'Daily walks, workouts, or healthy nutrition' },
-  { name: 'Travel', icon: '✈️', desc: 'Dream trips, day exploration, or weekend getaways' },
+  { name: 'Travel', icon: '✈', desc: 'Dream trips, day exploration, or weekend getaways' },
   { name: 'Finance', icon: '💰', desc: 'Budget targets, savings, and financial stability' },
   { name: 'Personal Growth', icon: '📚', desc: 'Learning skills, reading books, or meditation' },
-  { name: 'Future Plans', icon: '🎯', desc: 'Shared milestones, home organization, or career projects' },
+  { name: 'Future Plans', icon: '', desc: 'Shared milestones, home organization, or career projects' },
   { name: 'Something Else', icon: '✨', desc: 'Other custom goals built for the two of you' },
 ];
 
@@ -81,11 +81,11 @@ function getDeadlineLabel(targetDateStr?: string, isCompleted?: boolean): { labe
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) {
-    return { label: 'Due today ⚠️', style: 'text-amber-400 bg-amber-500/15 border-amber-500/30 font-bold' };
+    return { label: 'Due today ⚠', style: 'text-amber-400 bg-amber-500/15 border-amber-500/30 font-bold' };
   } else if (diffDays === 1) {
     return { label: 'Due tomorrow', style: 'text-yellow-300 bg-yellow-500/10 border-yellow-500/20' };
   } else if (diffDays < 0) {
-    return { label: `Overdue by ${Math.abs(diffDays)} days ⚠️`, style: 'text-rose-400 bg-rose-500/15 border-rose-500/30 font-bold' };
+    return { label: `Overdue by ${Math.abs(diffDays)} days ⚠`, style: 'text-rose-400 bg-rose-500/15 border-rose-500/30 font-bold' };
   } else {
     return { label: `Due in ${diffDays} days`, style: 'text-zinc-300 bg-zinc-900 border-white/5' };
   }
@@ -224,7 +224,7 @@ export const SharedGoals: React.FC = () => {
         if (partnerUid) {
           sendNotification(partnerUid, {
             type: 'goal',
-            title: 'New Shared Goal 🎯',
+            title: 'New Shared Goal ',
             body: `${creatorName} created a shared goal: "${goalTitle.trim()}".`,
             connectionId: coupleSpace.id
           }).catch(console.error);
@@ -267,7 +267,7 @@ export const SharedGoals: React.FC = () => {
         if (partnerUid) {
           sendNotification(partnerUid, {
             type: 'goal',
-            title: 'Goal Accomplished Together! 🎉',
+            title: 'Goal Accomplished Together! ',
             body: `"${goal.title}" has been completed! Another thing you achieved together.`,
             connectionId: coupleSpace.id
           }).catch(console.error);
@@ -428,7 +428,7 @@ export const SharedGoals: React.FC = () => {
                       {/* Content block */}
                       <div className="space-y-1">
                         <h4 className={`text-xs font-bold leading-relaxed ${goal.isCompleted ? 'line-through text-zinc-500' : 'text-zinc-100'}`}>
-                          🎯 {goal.title}
+                           {goal.title}
                         </h4>
                         {goal.description && (
                           <p className="text-[11px] text-zinc-400 leading-relaxed whitespace-pre-wrap">
@@ -629,7 +629,7 @@ export const SharedGoals: React.FC = () => {
 
             <div className="space-y-1">
               <h3 className="text-base font-bold text-white tracking-tight">
-                Goal completed 🎉
+                Goal completed 
               </h3>
               <p className="text-xs text-zinc-300 leading-relaxed max-w-xs mx-auto">
                 Another milestone achieved and celebrated together inside your connection space!

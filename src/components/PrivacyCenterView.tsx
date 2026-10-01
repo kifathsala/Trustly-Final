@@ -468,7 +468,7 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
     const matched = CONNECTION_TYPE_OPTIONS.find(
       opt => opt.type === typeStr || opt.label.toLowerCase() === (typeStr || '').toLowerCase()
     );
-    return matched ? { label: matched.label, emoji: matched.emoji } : { label: 'Connection', emoji: '🤝' };
+    return matched ? { label: matched.label, emoji: matched.emoji } : { label: 'Connection', emoji: '' };
   };
 
   return (
@@ -542,7 +542,7 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
               </span>
             </div>
           </div>
-          <PrivacyBadge state="private" label="🔒 Only You" />
+          <PrivacyBadge state="private" label="Only You" />
         </div>
 
         <p className="text-xs text-zinc-300 leading-relaxed">
@@ -570,7 +570,7 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
               </div>
               <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                 <Lock className="w-3 h-3" />
-                <span>🔒 Only You</span>
+                <span>Only You</span>
               </span>
             </div>
           ))}
@@ -595,7 +595,7 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
               </span>
             </div>
           </div>
-          <PrivacyBadge state="shared" label="👥 Connection Members" />
+          <PrivacyBadge state="shared" label=" Connection Members" />
         </div>
 
         <p className="text-xs text-zinc-300 leading-relaxed">
@@ -666,7 +666,7 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
               <p className="text-[10px] text-zinc-400">Control what your connections can view on your profile</p>
             </div>
           </div>
-          <PrivacyBadge state="controlled" label="⚙️ Controlled by you" />
+          <PrivacyBadge state="controlled" label="Controlled by you" />
         </div>
 
         <p className="text-xs text-zinc-300 leading-relaxed">
@@ -763,14 +763,14 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
         <div className="flex items-center justify-between border-b border-white/5 pb-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center text-lg shrink-0">
-              🎂
+              
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white">Birthday Sharing</h2>
               <p className="text-[10px] text-zinc-400">Manage celebration and reminder visibility</p>
             </div>
           </div>
-          <PrivacyBadge state="controlled" label="⚙️ Controlled by you" />
+          <PrivacyBadge state="controlled" label="Controlled by you" />
         </div>
 
         <div className="p-4 rounded-2xl bg-zinc-950/70 border border-white/5 space-y-3">
@@ -816,11 +816,11 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white">AI Coach Privacy</h2>
               <span className="text-[11px] text-emerald-400 font-semibold block mt-0.5">
-                🔒 Private by default
+                Private by default
               </span>
             </div>
           </div>
-          <PrivacyBadge state="private" label="🔒 Private" />
+          <PrivacyBadge state="private" label="Private" />
         </div>
 
         <div className="p-4 rounded-2xl bg-zinc-950/70 border border-white/5 space-y-2.5">
@@ -849,7 +849,7 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
               <p className="text-[10px] text-zinc-400">Strict alerts boundary</p>
             </div>
           </div>
-          <PrivacyBadge state="controlled" label="⚙️ Controlled by you" />
+          <PrivacyBadge state="controlled" label="Controlled by you" />
         </div>
 
         <p className="text-xs text-zinc-300 leading-relaxed">
@@ -925,11 +925,11 @@ export const PrivacyCenterView: React.FC<PrivacyCenterViewProps> = ({ onBack }) 
                         <span>Cannot see:</span>
                       </div>
                       <ul className="text-[11px] text-zinc-300 space-y-1">
-                        <li>🔒 Private check-ins</li>
-                        <li>🔒 Private reflections</li>
-                        <li>🔒 Private AI conversations</li>
-                        <li>🔒 Personal journal entries</li>
-                        <li>🔒 Private birthday (unless toggled)</li>
+                        <li>Private check-ins</li>
+                        <li>Private reflections</li>
+                        <li>Private AI conversations</li>
+                        <li>Personal journal entries</li>
+                        <li>Private birthday (unless toggled)</li>
                       </ul>
                     </div>
                   </div>

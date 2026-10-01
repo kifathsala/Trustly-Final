@@ -472,11 +472,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search TRUSTLY (connections, memories, goals, dates)..."
+            aria-label="Search TRUSTLY connections"
             className="w-full pl-10 pr-10 py-3 rounded-2xl bg-zinc-900/80 border border-white/10 text-white placeholder:text-zinc-500 text-xs sm:text-sm focus:outline-none focus:border-violet-500 transition-all"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-zinc-500 hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />

@@ -71,6 +71,7 @@ import { ConversationHub } from './ConversationHub';
 import { ImportantDatesView } from './ImportantDatesView';
 import { SharedNotesView } from './SharedNotesView';
 import { BoundariesView } from './BoundariesView';
+import { SharedMemoriesView } from './SharedMemoriesView';
 import { ConnectionPulseSection } from './ConnectionPulseSection';
 import { ConnectionCheckInModal } from './ConnectionCheckInModal';
 import { validateImageFile, optimizeImageFile } from '../lib/imageOptimizer';
@@ -317,7 +318,7 @@ export const CoupleSpaceView: React.FC = () => {
   const handleOpenEditMemory = (mem: SharedMemory) => {
     setEditingMemoryId(mem.id || null);
     setMemTitle(mem.title);
-    setMemDesc(mem.description);
+    setMemDesc(mem.description || '');
     setMemDate(mem.date || '');
     setMemImageUrl(mem.imageUrl || mem.photoURL || '');
     setMemImageFile(null);
@@ -339,7 +340,8 @@ export const CoupleSpaceView: React.FC = () => {
 
     if (memImageFile) {
       try {
-        finalImageUrl = await uploadMemoryImage(coupleSpace.id, memoryId, memImageFile);
+        const uploadRes = await uploadMemoryImage(coupleSpace.id, memoryId, memImageFile);
+        finalImageUrl = uploadRes.downloadUrl;
       } catch (storageErr: any) {
         console.warn("Storage upload notice:", storageErr);
         setErrorBanner("Could not upload photo to Firebase Storage. You can save without photo or enter a direct image URL.");
@@ -380,8 +382,8 @@ export const CoupleSpaceView: React.FC = () => {
         if (partnerProfile) {
           await sendPartnerNotification(
             partnerProfile.uid,
-            "New Shared Memory ❤️",
-            `${userProfile.displayName || 'Your partner'} added "${memTitle.trim()}" to memories.`,
+            "New Shared Memory ",
+            `${userProfile.displayName || 'Your connection'} added "${memTitle.trim()}" to memories.`,
             'memory'
           );
         }
@@ -487,8 +489,8 @@ export const CoupleSpaceView: React.FC = () => {
         if (partnerProfile) {
           await sendPartnerNotification(
             partnerProfile.uid,
-            "Important Date Added 📅",
-            `${userProfile.displayName || 'Your partner'} added "${dateTitle.trim()}".`,
+            "Important Date Added ",
+            `${userProfile.displayName || 'Your connection'} added "${dateTitle.trim()}".`,
             'date'
           );
         }
@@ -567,8 +569,8 @@ export const CoupleSpaceView: React.FC = () => {
         if (partnerProfile) {
           await sendPartnerNotification(
             partnerProfile.uid,
-            "New Shared Note 📝",
-            `${userProfile.displayName || 'Your partner'} added note "${noteTitle.trim()}".`,
+            "New Shared Note",
+            `${userProfile.displayName || 'Your connection'} added note "${noteTitle.trim()}".`,
             'note'
           );
         }
@@ -718,7 +720,7 @@ export const CoupleSpaceView: React.FC = () => {
   // REAL CONNECTION SPACE DASHBOARD (When connected)
   // =========================================================================
   const connectionLabel = getConnectionLabel(coupleSpace.connectionType);
-  const partnerName = partnerProfile?.displayName || coupleSpace.creatorName || 'Connection Partner';
+  const partnerName = partnerProfile?.displayName || coupleSpace.creatorName || 'Connection Member';
 
   const handleOpenSubView = (tab: 'memories' | 'goals' | 'dates' | 'notes' | 'boundaries' | 'conversation') => {
     setActiveTab(tab);
@@ -1059,124 +1061,7 @@ export const CoupleSpaceView: React.FC = () => {
       {/* 2. SECTION: SHARED MEMORIES */}
       {/* ===================================================================== */}
       {activeTab === 'memories' && (
-        <div className="space-y-4 animate-fadeIn">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-white">Shared Memories</h3>
-              <p className="text-xs text-zinc-400">
-                Keep the moments that matter.
-              </p>
-            </div>
-            <button
-              onClick={handleOpenAddMemory}
-              className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/20 flex items-center gap-1 transition-all cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Memory</span>
-            </button>
-          </div>
-
-          {memories.length === 0 ? (
-            <div className="glass-card rounded-3xl p-8 text-center border border-white/5 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 mx-auto flex items-center justify-center">
-                <Heart className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-zinc-200">
-                  No memories yet.
-                </h4>
-                <p className="text-xs text-zinc-400 max-w-xs mx-auto mt-1 leading-relaxed">
-                  Save a moment you'll want to remember.
-                </p>
-              </div>
-              <button
-                onClick={handleOpenAddMemory}
-                className="mt-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-semibold text-xs shadow-md shadow-rose-600/20 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create Your First Memory</span>
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3.5">
-              {memories.map((m) => {
-                const isCreator = m.createdBy === userProfile?.uid;
-                const photoSrc = m.imageUrl || m.photoURL;
-
-                return (
-                  <div 
-                    key={m.id} 
-                    className="glass-card rounded-2xl p-4 border border-white/10 space-y-3 hover:border-white/20 transition-all cursor-pointer group"
-                    onClick={() => setSelectedMemoryDetail(m)}
-                  >
-                    {photoSrc && (
-                      <div className="rounded-xl overflow-hidden max-h-52 w-full bg-zinc-950 border border-white/5 relative">
-                        <img 
-                          src={photoSrc} 
-                          alt={m.title} 
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" 
-                        />
-                      </div>
-                    )}
-
-                    <div className="space-y-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="text-sm font-bold text-white group-hover:text-rose-300 transition-colors">
-                          {m.title}
-                        </h4>
-                        {m.date && (
-                          <span className="text-[11px] font-mono text-rose-300/90 shrink-0">
-                            {new Date(m.date).toLocaleDateString(undefined, {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </span>
-                        )}
-                      </div>
-
-                      {m.description && (
-                        <p className="text-xs text-zinc-300 leading-relaxed line-clamp-2">
-                          {m.description}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="pt-2 flex items-center justify-between text-[10px] text-zinc-400 border-t border-white/5">
-                      <span>
-                        Created by {m.creatorName || (isCreator ? 'You' : (partnerProfile?.displayName || 'Partner'))}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEditMemory(m);
-                          }}
-                          className="p-1 rounded text-zinc-400 hover:text-white transition-colors"
-                          title="Edit memory"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMemoryToDelete(m);
-                          }}
-                          className="p-1 rounded text-zinc-400 hover:text-rose-400 transition-colors"
-                          title="Delete memory"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <SharedMemoriesView onBackToOverview={() => setSubView('overview')} />
       )}
 
       {/* ===================================================================== */}

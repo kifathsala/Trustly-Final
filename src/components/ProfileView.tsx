@@ -319,7 +319,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/25 flex items-center justify-center text-xl">
-              🎂
+              
             </div>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">

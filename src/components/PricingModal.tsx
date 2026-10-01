@@ -72,12 +72,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({
 
   const premiumFeatures = [
     { icon: '🧠', title: 'Advanced TRUSTLY Coach', desc: 'Deeper emotional clarity and custom guidance modes' },
-    { icon: '💬', title: 'Advanced conversation tools', desc: 'Guided preparation for delicate or difficult moments' },
-    { icon: '❤️', title: 'Advanced relationship insights', desc: 'Deeper pulse analytics without invasive tracking' },
+    { icon: '', title: 'Advanced conversation tools', desc: 'Guided preparation for delicate or difficult moments' },
+    { icon: '', title: 'Advanced relationship insights', desc: 'Deeper pulse analytics without invasive tracking' },
     { icon: '📝', title: 'Advanced private journaling', desc: 'Structured prompts for individual emotional clarity' },
-    { icon: '🎯', title: 'Advanced couple goals', desc: 'Multi-milestone shared aspirations and habit tracking' },
+    { icon: '', title: 'Advanced couple goals', desc: 'Multi-milestone shared aspirations and habit tracking' },
     { icon: '✨', title: 'Custom check-ins', desc: 'Tailor daily connection prompts to your relationship' },
-    { icon: '☁️', title: 'Expanded memory/storage', desc: 'Preserve cherished milestones and photos' },
+    { icon: '☁', title: 'Expanded memory/storage', desc: 'Preserve cherished milestones and photos' },
     { icon: '🔔', title: 'Advanced reminders', desc: 'Thoughtful date countdowns and anniversary alerts' },
   ];
 

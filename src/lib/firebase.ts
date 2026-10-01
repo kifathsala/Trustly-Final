@@ -26,10 +26,14 @@ export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app)
 export const googleProvider = new GoogleAuthProvider();
 export const storage = getStorage(app);
 
-// Safe memory image upload to couples/{coupleId}/memories/{memoryId}/...
-export async function uploadMemoryImage(coupleId: string, memoryId: string, file: File): Promise<string> {
+// Safe memory image upload to connections/{connectionId}/memories/{memoryId}/...
+export async function uploadMemoryImage(
+  coupleId: string, 
+  memoryId: string, 
+  file: File
+): Promise<{ downloadUrl: string; storagePath: string }> {
   const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = `couples/${coupleId}/memories/${memoryId}/${Date.now()}_${sanitizedName}`;
+  const path = `connections/${coupleId}/memories/${memoryId}/${Date.now()}_${sanitizedName}`;
   const fileRef = storageRef(storage, path);
   
   await uploadBytes(fileRef, file, {
@@ -38,13 +42,13 @@ export async function uploadMemoryImage(coupleId: string, memoryId: string, file
   });
   
   const downloadUrl = await getDownloadURL(fileRef);
-  return downloadUrl;
+  return { downloadUrl, storagePath: path };
 }
 
-export async function deleteMemoryImage(imageUrl?: string): Promise<void> {
-  if (!imageUrl || !imageUrl.includes('firebasestorage')) return;
+export async function deleteMemoryImage(storagePathOrUrl?: string): Promise<void> {
+  if (!storagePathOrUrl) return;
   try {
-    const fileRef = storageRef(storage, imageUrl);
+    const fileRef = storageRef(storage, storagePathOrUrl);
     await deleteObject(fileRef);
   } catch (err) {
     console.warn("Notice deleting image from storage:", err);

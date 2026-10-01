@@ -465,7 +465,7 @@ export const ConversationStartersModal: React.FC<ConversationStartersModalProps>
                       className="w-full bg-zinc-900/80 border border-white/10 rounded-2xl p-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500 resize-none leading-relaxed"
                     />
                     <div className="flex items-center justify-between text-[11px] text-zinc-500 px-1">
-                      <span>🔒 This text stays private to your account.</span>
+                      <span> This text stays private to your account.</span>
                       <span>{userReflection.length}/600</span>
                     </div>
                   </div>
@@ -567,7 +567,7 @@ export const ConversationStartersModal: React.FC<ConversationStartersModalProps>
                     {/* Part 1: WHAT I'M FEELING */}
                     <div className="p-4 rounded-2xl bg-zinc-900/70 border border-white/5 space-y-1.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400 flex items-center gap-1">
-                        <span>💗</span> WHAT I'M FEELING
+                        <span></span> WHAT I'M FEELING
                       </span>
                       {isEditing ? (
                         <textarea
@@ -586,7 +586,7 @@ export const ConversationStartersModal: React.FC<ConversationStartersModalProps>
                     {/* Part 2: WHAT I WANT TO DISCUSS */}
                     <div className="p-4 rounded-2xl bg-zinc-900/70 border border-white/5 space-y-1.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1">
-                        <span>🎯</span> WHAT I WANT TO DISCUSS
+                        <span></span> WHAT I WANT TO DISCUSS
                       </span>
                       {isEditing ? (
                         <textarea
@@ -605,7 +605,7 @@ export const ConversationStartersModal: React.FC<ConversationStartersModalProps>
                     {/* Part 3: A GENTLE WAY TO START */}
                     <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-950/20 via-purple-950/20 to-zinc-900/80 border border-rose-500/25 space-y-1.5 shadow-lg">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1">
-                        <span>💬</span> A GENTLE WAY TO START
+                        <span></span> A GENTLE WAY TO START
                       </span>
                       {isEditing ? (
                         <textarea

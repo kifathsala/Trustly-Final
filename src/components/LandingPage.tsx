@@ -163,7 +163,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStartTogether, onExplore
               <div className="flex flex-col items-center z-10">
                 <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[1.5px] bg-gradient-to-b from-indigo-400 via-purple-500/40 to-transparent shadow-lg shadow-indigo-500/15 animate-trust-node [animation-delay:1.5s]">
                   <div className="w-full h-full rounded-full bg-zinc-950 flex flex-col items-center justify-center border border-white/10">
-                    <span className="text-xl sm:text-2xl filter drop-shadow-sm">🤝</span>
+                    <span className="text-xl sm:text-2xl filter drop-shadow-sm"></span>
                   </div>
                   {/* Subtle inner pulse ring */}
                   <div className="absolute -inset-1 rounded-full border border-indigo-500/20 animate-pulse pointer-events-none" />

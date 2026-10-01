@@ -28,7 +28,7 @@ export const PrivacyBadge: React.FC<PrivacyBadgeProps> = ({
         title="Only you can see this. Private by default."
       >
         <Lock className={`${iconSize} text-emerald-400`} />
-        <span>{label || '🔒 Private'}</span>
+        <span>{label || ' Private'}</span>
       </span>
     );
   }
@@ -40,7 +40,7 @@ export const PrivacyBadge: React.FC<PrivacyBadgeProps> = ({
         title="Controlled by your privacy settings."
       >
         <Settings className={`${iconSize} text-amber-400`} />
-        <span>{label || '⚙️ Controlled by you'}</span>
+        <span>{label || '⚙ Controlled by you'}</span>
       </span>
     );
   }
@@ -63,7 +63,7 @@ export const PrivacyBadge: React.FC<PrivacyBadgeProps> = ({
       title="Shared with your connected space"
     >
       <Users className={`${iconSize} text-violet-400`} />
-      <span>{label || '👥 Shared'}</span>
+      <span>{label || ' Shared'}</span>
     </span>
   );
 };

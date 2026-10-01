@@ -201,7 +201,7 @@ export const PrivateJournalView: React.FC = () => {
       <div className="space-y-4">
         {entries.length === 0 && !isCreating ? (
           <div className="glass-card rounded-3xl p-8 text-center border border-white/5">
-            <span className="text-2xl mb-2 block">📖</span>
+            <span className="text-2xl mb-2 block"></span>
             <h4 className="text-sm font-semibold text-zinc-200 mb-1">No journal reflections yet.</h4>
             <p className="text-xs text-zinc-400 max-w-xs mx-auto mb-4">
               Use this safe space to write out your thoughts before speaking them out loud.

@@ -84,10 +84,13 @@ service cloud.firestore {
         allow read: if isCoupleMember(coupleId);
         allow create: if isCoupleMember(coupleId) && 
           (request.resource.data.createdBy == request.auth.uid || request.resource.data.creatorId == request.auth.uid);
-        allow update: if isCoupleMember(coupleId) && 
-          request.resource.data.coupleId == resource.data.coupleId &&
-          (request.resource.data.createdBy == resource.data.createdBy || isMasterAdmin());
+        allow update: if isCoupleMember(coupleId);
         allow delete: if isCoupleMember(coupleId);
+      }
+
+      match /activity/{activityId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if false; // Must be handled by Cloud Function or application logic with proper checks
       }
 
       match /goals/{goalId} {
